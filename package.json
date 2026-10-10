@@ -1,0 +1,102 @@
+{
+  "name": "laboratoire-de-frost",
+  "productName": "Le laboratoire de Frost",
+  "version": "0.2.0",
+  "private": true,
+  "description": "Textures imprimables pour graphistes — trames, profils ICC, exports print.",
+  "type": "module",
+  "main": "electron/main.cjs",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "check": "tsc --noEmit",
+    "desktop": "vite build && electron .",
+    "test:engine": "node --experimental-strip-types tests/engine.test.ts",
+    "portable": "npm run build && node scripts/portable.mjs",
+    "installer": "npm run build && node scripts/installer.mjs"
+  },
+  "devDependencies": {
+    "@fontsource/eb-garamond": "^5.3.0",
+    "@fontsource/inter": "^5.3.0",
+    "@fontsource/orbitron": "^5.3.0",
+    "@fontsource/silkscreen": "^5.3.0",
+    "@fontsource/space-mono": "^5.3.0",
+    "@fontsource/vt323": "^5.3.0",
+    "electron": "^44.7.0",
+    "electron-builder": "^26.15.3",
+    "lcms-wasm": "^1.0.5",
+    "opentype.js": "^2.0.0",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.4"
+  },
+  "build": {
+    "appId": "fr.laboratoire-de-frost.app",
+    "productName": "Le laboratoire de Frost",
+    "copyright": "Le laboratoire de Frost",
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
+    },
+    "files": [
+      "dist/**",
+      "electron/**",
+      "package.json",
+      "!node_modules/**"
+    ],
+    "asar": true,
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.ico",
+      "artifactName": "Laboratoire-de-Frost-Setup-${version}.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Le laboratoire de Frost",
+      "installerLanguages": [
+        "fr_FR"
+      ],
+      "language": "1036"
+    },
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        }
+      ],
+      "category": "public.app-category.graphics-design",
+      "icon": "build/icon.png",
+      "artifactName": "Laboratoire-de-Frost-${version}-mac-${arch}.${ext}",
+      "identity": "-",
+      "hardenedRuntime": false,
+      "gatekeeperAssess": false
+    },
+    "linux": {
+      "target": [
+        "AppImage"
+      ],
+      "category": "Graphics",
+      "icon": "build/icon.png",
+      "artifactName": "Laboratoire-de-Frost-${version}-${arch}.${ext}"
+    },
+    "dmg": {
+      "title": "Le laboratoire de Frost ${version}"
+    }
+  },
+  "author": "Le laboratoire de Frost"
+}

@@ -1,0 +1,75 @@
+# Fabrique le logiciel pour Windows (.exe d'installation) et macOS (.dmg, puces Apple et Intel)
+# sur les machines de GitHub. Se lance :
+#  - à la main : onglet « Actions » → « Fabrication » → « Run workflow » ;
+#  - à chaque version : en poussant une étiquette « v0.3.0 » (crée aussi une Release en brouillon).
+name: Fabrication
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  fabriquer:
+    name: ${{ matrix.nom }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - nom: Windows
+            os: windows-latest
+            cible: --win nsis
+          - nom: macOS
+            os: macos-latest
+            cible: --mac dmg --arm64 --x64
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Dépendances
+        run: npm ci
+
+      - name: Vérification des types et construction
+        run: npm run build
+
+      - name: Tests du moteur (trames, engraissement, LZW, texte, exports)
+        run: node --experimental-strip-types tests/engine.test.ts test-out
+
+      - name: Fabrication de l'application
+        run: npx electron-builder ${{ matrix.cible }} --publish never
+        env:
+          # pas de certificat : signature ad hoc sur Mac, aucune sur Windows
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Laboratoire-de-Frost-${{ matrix.nom }}
+          path: |
+            release/*.exe
+            release/*.dmg
+          if-no-files-found: error
+
+  publier:
+    name: Release (brouillon)
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: fabriquer
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: fichiers
+          merge-multiple: true
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          draft: true
+          name: Le laboratoire de Frost ${{ github.ref_name }}
+          files: fichiers/*

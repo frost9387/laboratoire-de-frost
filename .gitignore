@@ -1,0 +1,9 @@
+# dépendances et fichiers fabriqués
+node_modules/
+dist/
+release/
+test-out*/
+
+# réglages locaux des outils
+.claude/
+*.log
