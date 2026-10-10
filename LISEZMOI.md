@@ -1,4 +1,4 @@
-# ❄ Le laboratoire de Frost — v0.2
+# ❄ Le laboratoire de Frost — v0.3
 
 Logiciel de **textures imprimables et de mise en page** pour graphistes. Une seule base de code : **version web** (navigateur) et **version bureau** (Windows/Mac, Electron).
 
@@ -10,7 +10,7 @@ Logiciel de **textures imprimables et de mise en page** pour graphistes. Une seu
 | **Bureau, depuis les sources** | double-clic sur `Lancer-Laboratoire-de-Frost.bat` (ou `npm run desktop`) |
 | **Web** | double-clic sur `Lancer-version-web.bat` → http://localhost:5178 (ou `npm run dev`) |
 | **Refaire la version portable** | `npm run portable` |
-| **Installateur Windows** | `release/Laboratoire-de-Frost-Setup-0.2.0.exe` — à refaire avec `npm run installer` |
+| **Installateur Windows** | `release/Laboratoire-de-Frost-Setup-0.3.0.exe` — à refaire avec `npm run installer` |
 | **Tests du moteur** | `node --experimental-strip-types tests/engine.test.ts <dossier>` puis `python -I tests/verify_exports.py <dossier>` |
 
 Prérequis pour les sources : Node.js. La première fois, `npm install`.
@@ -64,10 +64,31 @@ Liste complète : menu Aide → Raccourcis (les touches s'affichent en ⌘ sur M
 2. **Pile d'effets** (à droite) : 20 effets imprimables, réglés en mm. **MOSH !** (Ctrl/⌘ + M) tire des effets au hasard ; 🔒 protège un effet.
 3. **Trame** : comment chaque plaque devient des points. Préréglages offset, journal, sérigraphie, riso, bitmap.
 4. **Planche** : seule la zone visible est recalculée, même très zoomé. **Loupe** (Affichage) : la vraie trame à la résolution de sortie ; elle reste au premier plan et se place d'un clic, y compris sur un texte.
-5. **✎ Atelier** : dessine une tuile raccordable, règle les curseurs, écris une consigne et clique **✦ Améliorer avec l'IA**.
+5. **✎ Atelier** : dessine une tuile, règle la matière, écris une consigne et clique **✦ Améliorer avec l'IA** (voir ci-dessous).
 6. **Exporter** (Ctrl/⌘ + E) : JPG, PNG, SVG, TIFF.
 
-## Exports
+## L'Atelier de dessin (v0.3)
+
+**18 outils** (raccourci entre parenthèses) :
+
+| Pinceaux | Tampons | Formes |
+|---|---|---|
+| Crayon (C) · Pinceau (B) · Plume biseautée (N) · Feutre (F) · Fusain sur grain de papier (K) · Brosse sèche (D) · Aéro (A) · Points (P) · Taches / éclaboussures (S) · Hachures, croisées ou non (H) | Tampon (M) : 9 formes, **ton logo** (SVG, PNG, JPG) ou **un objet de la page** · Texte (T) avec toutes les polices, y compris les tiennes | Ligne (L) · Rectangle (R) · Ellipse (O) · Remplir / pot de peinture (G) · Flou (U) · Gomme (E) |
+
+- Réglages par outil (taille, opacité du geste, dureté, angle, espacement, dispersion, variation, rotation au hasard, grain, sécheresse…), gardés d'une séance à l'autre. `[` et `]` changent la taille.
+- **Symétries** : miroirs, quatre quarts, radiales ×4 / ×6 / ×8, kaléidoscope ×12. **Raccordable** ou non.
+- **Finesse de la tuile** : 512, 1024 ou 2048 px. **Échelle du motif de 0,5 mm à 1 m** (curseur logarithmique) ; le calcul suit la résolution d'export.
+- Les échelles des autres textures vont aussi jusqu'à 1 m (réaction-diffusion, bruit), et l'image jusqu'à 1000 %.
+
+### Textes, logos et formes travaillés comme une texture
+
+Dans **Calques**, chaque objet a un groupe « Travailler à la main » :
+
+- **✎ Dessiner sur cet objet** : le texte, la forme ou le logo devient un dessin de l'Atelier, **à la même place sur la page**. Retouche-le au pinceau, fais-le pousser (croissance organique), rends-le rugueux, granuleux… Ses effets, sa trame et son encre restent. **↺ Revenir à l'original** à tout moment.
+- **▦ En faire un motif** : nouvelle tuile avec l'objet au centre ; dessine autour puis **+ Nouvelle couche** pour le répéter sur toute la page.
+- Dans l'Atelier, **◈ Poser comme objet** fait l'inverse : n'importe quel dessin devient un objet déplaçable, posé une seule fois.
+
+
 
 | Format | Contenu possible | Ce qui est inscrit dans le fichier |
 |---|---|---|
@@ -173,6 +194,7 @@ Options : fond perdu inclus ou non, **traits de coupe** (marge technique 10 mm).
 - Polices intégrées : alphabet latin (accents, œ, €, guillemets…) mais **pas de flèches ni de symboles** (→, ★…) ; importe ta propre police pour ça.
 - Texte : une seule police, taille et couleur par bloc (pas encore de styles à l'intérieur d'un paragraphe), pas de chaînage entre blocs.
 - Effets « sur la forme » : les bords suivent la résolution du ton continu (lissés à l'export, mais moins nets qu'un texte normal).
+- Objet repris à la main : dessin de 2048 px. Un titre de 27 cm garde des bords d'environ 150 dpi, adoucis à l'export : parfait pour un rendu dessiné, moins pour un texte très net (garder alors l'original).
 - SVG avec trames FM / diffusion : fichier lourd (une affiche A3 riso ≈ 80 Mo). Préférer le TIFF 1 bit pour l'imprimeur, ou une trame AM pour le SVG.
 - L'IA locale demande un modèle Ollama à télécharger (plusieurs Go) ; sans lui, le mode règles fonctionne.
 - Ni l'installateur ni la version portable ne sont signés : Windows affiche « Windows a protégé votre ordinateur » → Informations complémentaires → Exécuter quand même.

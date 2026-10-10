@@ -143,6 +143,35 @@ console.log("LZW (TIFF)");
   ok(dec.length === data.length && dec.every((v, i) => v === data[i]), `décompression identique (${data.length} → ${enc.length} octets)`);
 }
 
+// ---------------------------------------------------------------- atelier : dessin → matière
+console.log("Atelier (dessin → matière)");
+{
+  const { inkFromRGBA, synthDessinTile, dessinResolution, defaultDessinParams, objectDessinParams } = await import("../src/engine/dessin.ts");
+  // un disque de 40 % de la tuile, dessiné à 2048 px
+  const S = 2048;
+  const rgba = new Uint8ClampedArray(S * S * 4);
+  for (let y = 0; y < S; y++)
+    for (let x = 0; x < S; x++) if (Math.hypot(x + 0.5 - S / 2, y + 0.5 - S / 2) < S * 0.2) rgba[(y * S + x) * 4 + 3] = 255;
+  const cover = (n: number, p: Record<string, number | string>) => {
+    const t = synthDessinTile(inkFromRGBA(rgba, S, n), n, p);
+    let s = 0;
+    for (const v of t) s += v;
+    return s / t.length;
+  };
+  const p = { ...defaultDessinParams(), rugosite: 0, grain: 0 };
+  const c256 = cover(256, p);
+  const c1024 = cover(1024, p);
+  ok(Math.abs(c256 - c1024) < 0.01, `même couverture à 256 et 1024 px (${(c256 * 100).toFixed(1)} % / ${(c1024 * 100).toFixed(1)} % ; attendu ≈ ${(Math.PI * 0.04 * 100).toFixed(1)} %)`);
+  const t0 = performance.now();
+  const org = cover(1024, { ...p, organique: 60 });
+  ok(org > 0.05 && org < 0.95, `croissance organique à 1024 px en ${Math.round(performance.now() - t0)} ms (couverture ${(org * 100).toFixed(1)} %)`);
+  ok(dessinResolution(30, 600, 2048) === 1024 && dessinResolution(1000, 600, 2048) === 2048 && dessinResolution(5, 50, 2048) === 64, "résolution adaptée à l'échelle (30 mm à 600 ppi → 1024 px, 1 m → 2048 px, plafond = dessin)");
+  const up = inkFromRGBA(rgba.subarray(0, 512 * 512 * 4), 512, 1024);
+  ok(up.length === 1024 * 1024, "un dessin de 512 px s'agrandit sans erreur pour un calcul à 1024 px");
+  const o = objectDessinParams();
+  ok(o.rugosite === 0 && o.grain === 0 && Number(o.nettete) >= 90, "un objet repris à la main garde son allure (rugosité et grain à 0, bords nets)");
+}
+
 // ---------------------------------------------------------------- texte (contours vectoriels)
 console.log("Composition du texte");
 {

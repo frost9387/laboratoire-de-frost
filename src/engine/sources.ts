@@ -5,7 +5,7 @@ import type { ColorEngine } from "./color.ts";
 import { makeField, type Field } from "./field.ts";
 import { Perlin, worley } from "./noise.ts";
 import { RD_PRESETS, simulateRD } from "./rd.ts";
-import { defaultDessinParams, inkFromRGBA, makeDessinSampler, synthDessinTile, synthKey } from "./dessin.ts";
+import { defaultDessinParams, dessinResolution, inkFromRGBA, makeDessinSampler, synthDessinTile, synthKey } from "./dessin.ts";
 import { clamp01, hash3, sampleWrap } from "./util.ts";
 
 export interface SourceDef {
@@ -22,7 +22,7 @@ export const SOURCE_DEFS: SourceDef[] = [
     label: "Réaction-diffusion",
     params: [
       { key: "motif", label: "Motif", kind: "select", def: "labyrinthe", options: rdOptions },
-      { key: "tuile", label: "Taille de la tuile", kind: "range", min: 3, max: 200, step: 0.5, def: 24, unit: "mm" },
+      { key: "tuile", label: "Taille de la tuile", kind: "range", min: 1, max: 1000, step: 0.1, def: 24, unit: "mm", log: true },
       { key: "croissance", label: "Croissance", kind: "range", min: 300, max: 9000, step: 100, def: 3200, unit: "it.", hint: "Durée de la réaction : plus long = motif plus régulier." },
       { key: "angle", label: "Rotation", kind: "range", min: 0, max: 360, step: 1, def: 0, unit: "°" },
       { key: "contraste", label: "Contraste", kind: "range", min: 0, max: 300, step: 5, def: 100, unit: "%" },
@@ -37,7 +37,7 @@ export const SOURCE_DEFS: SourceDef[] = [
         key: "type", label: "Type", kind: "select", def: "nuages",
         options: [["nuages", "Nuages (fBm)"], ["turbulence", "Turbulence"], ["cretes", "Crêtes"], ["cellules", "Cellules (Worley)"], ["reseau", "Réseau cellulaire"], ["fibres", "Fibres de papier"], ["blanc", "Bruit blanc"]],
       },
-      { key: "echelle", label: "Échelle", kind: "range", min: 0.2, max: 200, step: 0.1, def: 14, unit: "mm" },
+      { key: "echelle", label: "Échelle", kind: "range", min: 0.1, max: 1000, step: 0.1, def: 14, unit: "mm", log: true },
       { key: "octaves", label: "Détail (octaves)", kind: "range", min: 1, max: 8, step: 1, def: 5 },
       { key: "contraste", label: "Contraste", kind: "range", min: 0, max: 400, step: 5, def: 140, unit: "%" },
       { key: "densite", label: "Densité", kind: "range", min: 0, max: 100, step: 1, def: 50, unit: "%" },
@@ -51,7 +51,7 @@ export const SOURCE_DEFS: SourceDef[] = [
     label: "Image importée",
     params: [
       { key: "ajustement", label: "Ajustement", kind: "select", def: "couvrir", options: [["couvrir", "Remplir la page"], ["contenir", "Contenir"], ["etirer", "Étirer"]] },
-      { key: "echelle", label: "Échelle", kind: "range", min: 10, max: 400, step: 1, def: 100, unit: "%" },
+      { key: "echelle", label: "Échelle", kind: "range", min: 5, max: 1000, step: 1, def: 100, unit: "%", log: true },
       { key: "decalX", label: "Décalage X", kind: "range", min: -100, max: 100, step: 1, def: 0, unit: "%" },
       { key: "decalY", label: "Décalage Y", kind: "range", min: -100, max: 100, step: 1, def: 0, unit: "%" },
       {
@@ -275,7 +275,7 @@ export function generateSource(src: SourceSpec, ctx: SourceCtx): Field {
     case "dessin": {
       const asset = src.assetId ? ctx.assets.get(src.assetId) : undefined;
       if (!asset?.rgba) return makeField(w, h, 1, 0);
-      const n = 256;
+      const n = dessinResolution(Number(p.echelle), ppi, asset.width);
       const tile = dessinTile(ctx.cache, asset, p, n);
       const sample = makeDessinSampler(tile, n, p);
       const f = makeField(w, h, 1);

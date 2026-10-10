@@ -1,7 +1,7 @@
 {
   "name": "laboratoire-de-frost",
   "productName": "Le laboratoire de Frost",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "description": "Textures imprimables pour graphistes — trames, profils ICC, exports print.",
   "type": "module",

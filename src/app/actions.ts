@@ -1,14 +1,16 @@
 // Actions partagées par les menus, les raccourcis et les fenêtres.
 import { store } from "./store.ts";
 import { EFFECTS, defaultParams, randomParam } from "../engine/effects.ts";
-import { defaultDoc, isElement, newElement, SPOT_INKS, migrateDoc } from "../engine/doc.ts";
+import { defaultDoc, isElement, kindOf, newElement, SPOT_INKS, migrateDoc } from "../engine/doc.ts";
+import { objectDessinParams } from "../engine/dessin.ts";
+import { client } from "./client.ts";
 import { rng, uid } from "../engine/util.ts";
 import { preferredCmyk } from "./profiles.ts";
-import { importLogoFile } from "./project.ts";
+import { importLogoFile, registerAsset } from "./project.ts";
 import { applyDestination } from "./destinations.ts";
 import { pickFile } from "./desktop.ts";
 import { armAutosave } from "./autosave.ts";
-import type { Doc, EffectInst, Ink, Layer, LayerKind } from "../engine/types.ts";
+import type { Asset, Doc, EffectInst, Ink, Layer, LayerKind } from "../engine/types.ts";
 
 /** Le bouton MOSH : tire 2 à 4 effets imprimables dans leurs plages utiles. Les effets verrouillés restent. */
 export function mosh() {
@@ -151,4 +153,58 @@ export function addEffect(type: string) {
   const fx: EffectInst = { id: uid("fx"), type, on: true, locked: false, params: defaultParams(def) };
   store.selectedEffectId = fx.id;
   store.update((d) => d.layers.find((l) => l.id === d.activeLayerId)?.effects.push(fx));
+}
+
+/**
+ * Reprend un objet (texte, forme, logo) à la main : il devient un dessin de l'Atelier (2048 px),
+ * à la même place, avec sa version d'origine gardée pour pouvoir revenir en arrière.
+ */
+export async function drawOnElement(id: string): Promise<boolean> {
+  const d = store.doc;
+  const l = d.layers.find((x) => x.id === id);
+  if (!l || !isElement(l) || !l.box) return false;
+  const N = 2048;
+  const r = await client.raster(d, l, (N * 0.8) / Math.max(l.box.w, l.box.h), false);
+  const rgba = new Uint8ClampedArray(N * N * 4);
+  const ox = Math.round((N - r.w) / 2);
+  const oy = Math.round((N - r.h) / 2);
+  for (let y = 0; y < r.h; y++)
+    for (let x = 0; x < r.w; x++) {
+      const a = r.alpha[y * r.w + x];
+      if (a) rgba[((oy + y) * N + ox + x) * 4 + 3] = a;
+    }
+  const asset: Asset = { id: uid("dessin"), kind: "dessin", name: l.name, width: N, height: N, rgba };
+  registerAsset(asset);
+  const side = N / r.pxPerMm;
+  store.update((dd) => {
+    const x = dd.layers.find((y) => y.id === id);
+    if (!x?.box) return;
+    x.avantDessin = { kind: kindOf(x), name: x.name, box: { ...x.box }, text: x.text, shape: x.shape, image: x.image, assetId: x.assetId };
+    const cx = x.box.x + x.box.w / 2;
+    const cy = x.box.y + x.box.h / 2;
+    x.kind = "image";
+    x.assetId = asset.id;
+    x.image = { fit: "contenir", dessin: { ...objectDessinParams(), rev: 1 } };
+    x.box = { x: cx - side / 2, y: cy - side / 2, w: side, h: side, rot: x.box.rot };
+    delete x.text;
+    delete x.shape;
+    dd.activeLayerId = id;
+  });
+  return true;
+}
+
+/** Annule la reprise à la main : l'objet redevient le texte, la forme ou le logo d'origine. */
+export function restoreElement(id: string) {
+  store.update((d) => {
+    const x = d.layers.find((y) => y.id === id);
+    const o = x?.avantDessin;
+    if (!x || !o) return;
+    x.kind = o.kind;
+    x.box = { ...o.box };
+    x.text = o.text;
+    x.shape = o.shape;
+    x.image = o.image;
+    x.assetId = o.assetId;
+    delete x.avantDessin;
+  });
 }

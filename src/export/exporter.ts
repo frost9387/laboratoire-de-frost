@@ -377,7 +377,7 @@ function finalize(
     "Plaques :",
     ...descs.map((p, i) => `  ${i + 1}. ${p.name} (${p.hex}) — ${screenLabel(p)}`),
     ...(objets.length
-      ? ["", "Objets de mise en page :", ...objets.map((l) => `  - ${l.name} (${l.kind}) — encre ${l.ink.name}${l.overprint ? ", en surimpression" : ", en réserve"}${l.fill?.mode === "texture" ? ", texturé" : ""}`)]
+      ? ["", "Objets de mise en page :", ...objets.map((l) => `  - ${l.name} (${l.image?.dessin ? "dessin à la main" : l.kind}) — encre ${l.ink.name}${l.overprint ? ", en surimpression" : ", en réserve"}${l.fill?.mode === "texture" ? ", texturé" : ""}`)]
       : []),
     "",
     ...(warnings.length ? ["Avertissements :", ...warnings.map((w) => "  - " + w), ""] : []),

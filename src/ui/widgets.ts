@@ -10,6 +10,8 @@ export interface SliderOpts {
   unit?: string;
   def?: number;
   hint?: string;
+  /** Curseur logarithmique : pour les plages très larges (0,5 mm → 1 m). */
+  log?: boolean;
   /** Pendant le glissement (aperçu). */
   onInput: (v: number) => void;
   /** À la fin du geste (historique). */
@@ -19,18 +21,30 @@ export interface SliderOpts {
 /** Curseur + champ numérique + unité. Clic droit = valeur par défaut. Molette sur le champ = pas. */
 export function slider(o: SliderOpts): HTMLElement {
   const step = o.step ?? 1;
-  const range = h("input", { type: "range", min: String(o.min), max: String(o.max), step: String(step), value: String(o.value), class: "rng" });
+  // logarithmique : la course du curseur est répartie en proportions (×2 prend la même place partout)
+  const log = !!o.log && o.min > 0;
+  const LOGN = 1000;
+  const toPos = (v: number) => (log ? Math.round((Math.log(v / o.min) / Math.log(o.max / o.min)) * LOGN) : v);
+  const fromPos = (p: number) => (log ? o.min * Math.pow(o.max / o.min, p / LOGN) : p);
+  // pas « lisible » en log : 0,1 sous 10, 0,5 sous 100, 1 au-delà
+  const snap = (v: number) => {
+    const st = log ? Math.max(step, v < 10 ? 0.1 : v < 100 ? 0.5 : 1) : step;
+    return Math.round(v / st) * st;
+  };
+  const range = h("input", log
+    ? { type: "range", min: "0", max: String(LOGN), step: "1", value: String(toPos(o.value)), class: "rng" }
+    : { type: "range", min: String(o.min), max: String(o.max), step: String(step), value: String(o.value), class: "rng" });
   const field = h("input", { type: "text", class: "num", value: fmt(o.value, step), inputmode: "decimal", "aria-label": o.label });
-  const set = (v: number, commit: boolean) => {
+  const set = (v: number, commit: boolean, fromRange = false) => {
     if (!Number.isFinite(v)) return;
-    v = Math.min(o.max, Math.max(o.min, Math.round(v / step) * step));
-    range.value = String(v);
+    v = Math.min(o.max, Math.max(o.min, fromRange ? snap(v) : Math.round(v / step) * step));
+    if (!fromRange || !log) range.value = String(toPos(v));
     field.value = fmt(v, step);
     o.onInput(v);
     if (commit) o.onCommit?.(v);
   };
-  range.addEventListener("input", () => set(Number(range.value), false));
-  range.addEventListener("change", () => set(Number(range.value), true));
+  range.addEventListener("input", () => set(fromPos(Number(range.value)), false, true));
+  range.addEventListener("change", () => set(fromPos(Number(range.value)), true, true));
   field.addEventListener("change", () => set(parseNum(field.value), true));
   field.addEventListener("keydown", (e) => {
     if (e.key === "ArrowUp" || e.key === "ArrowDown") {

@@ -7,7 +7,7 @@ import { client } from "../../app/client.ts";
 import { newLayer, SPOT_INKS, kindOf, isElement, KIND_ICON, KIND_LABEL } from "../../engine/doc.ts";
 import { SOURCE_DEFS, SOURCE_BY_TYPE, defaultSource } from "../../engine/sources.ts";
 import { importImageFile, importLogoFile, importFontFile, fontList, listLocalFonts, importLocalFont } from "../../app/project.ts";
-import { addElement, addLogo, deleteLayer, duplicateLayer } from "../../app/actions.ts";
+import { addElement, addLogo, deleteLayer, drawOnElement, duplicateLayer, restoreElement } from "../../app/actions.ts";
 import { pickFile } from "../../app/desktop.ts";
 import { toast } from "../toast.ts";
 import type { ParamDef } from "../../engine/effects.ts";
@@ -23,14 +23,21 @@ export function paramControls(defs: ParamDef[], params: Params, onChange: (k: st
       return h("label", { class: "row check", title: d.hint ?? "" }, box, h("span", null, d.label));
     }
     return slider({
-      label: d.label, value: Number(params[d.key]), min: d.min!, max: d.max!, step: d.step, unit: d.unit, def: Number(d.def), hint: d.hint,
+      label: d.label, value: Number(params[d.key]), min: d.min!, max: d.max!, step: d.step, unit: d.unit, def: Number(d.def), hint: d.hint, log: d.log,
       onInput: (v) => onChange(d.key, v, true),
       onCommit: () => store.commit(),
     });
   });
 }
 
-export function mountCouches(win: Win, openAtelier: () => void, focusText: { fn?: () => void }) {
+/** Ce que le panneau Calques peut demander à l'Atelier de dessin. */
+export interface AtelierBridge {
+  open(): void;
+  fromObject(layerId: string): void;
+}
+
+export function mountCouches(win: Win, atelier: AtelierBridge, focusText: { fn?: () => void }) {
+  const openAtelier = () => atelier.open();
   const ORIGIN = "couches";
   const swatchCache = new Map<string, string>();
   let localFonts: Awaited<ReturnType<typeof listLocalFonts>> = null;
@@ -273,7 +280,30 @@ export function mountCouches(win: Win, openAtelier: () => void, focusText: { fn?
         ),
       );
     }
-    if (k === "image") {
+    const drawn = k === "image" && !!l.image?.dessin;
+    out.push(
+      group(
+        drawn ? "Dessiné à la main" : "Travailler à la main",
+        drawn
+          ? h("div", { class: "muted" }, "Cet objet est un dessin de l'Atelier : pinceaux, croissance organique, rugosité…")
+          : h("div", { class: "muted" }, "Comme une texture : retouche au pinceau, fais-le pousser, rends-le rugueux, ou répète-le en motif."),
+        h("div", { class: "btns" },
+          button(drawn ? "✎ Ouvrir dans l'Atelier" : "✎ Dessiner sur cet objet", async () => {
+            if (!drawn) {
+              try {
+                if (!(await drawOnElement(l.id))) return;
+              } catch (e) {
+                return toast("Atelier", "Impossible de reprendre cet objet : " + (e instanceof Error ? e.message : String(e)), "err");
+              }
+            }
+            openAtelier();
+          }, { cls: "frost", title: drawn ? "" : "L'objet devient un dessin (2048 px) à la même place. « Revenir à l'original » reste possible." }),
+          button("▦ En faire un motif", () => atelier.fromObject(l.id), { cls: "small", title: "Ouvre une nouvelle tuile dans l'Atelier avec cet objet au centre, pour le répéter en texture." }),
+        ),
+        drawn && l.avantDessin ? h("div", { class: "btns" }, button("↺ Revenir à l'original", () => restoreElement(l.id), { cls: "small", title: `Redevient ${l.avantDessin.kind === "texte" ? "le texte" : l.avantDessin.kind === "forme" ? "la forme" : "le logo"} d'avant.` })) : null,
+      ),
+    );
+    if (k === "image" && !drawn) {
       const a = l.assetId ? store.assets.get(l.assetId) : undefined;
       out.push(
         group(
@@ -360,7 +390,7 @@ export function mountCouches(win: Win, openAtelier: () => void, focusText: { fn?
         button("Dupliquer", () => duplicateLayer(l.id), { cls: "small" }),
         button("Supprimer", () => deleteLayer(l.id), { cls: "small", disabled: d.layers.length <= 1 }),
       ),
-      group(KIND_LABEL[k], h("div", { class: "row" }, h("label", null, "Nom"), nameIn)),
+      group(k === "image" && l.image?.dessin ? "Objet dessiné" : KIND_LABEL[k], h("div", { class: "row" }, h("label", null, "Nom"), nameIn)),
       ...(k === "texture" ? [inkGroup(l), group("Source", ...sourceControls(l, SOURCE_DEFS.map((x) => x.type)))] : elementProps(l)),
     );
   }

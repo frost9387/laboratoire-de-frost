@@ -5,6 +5,8 @@ import type { FontStore } from "./fonts.ts";
 import { layoutText, PT_TO_MM } from "./text.ts";
 import { kindOf } from "./doc.ts";
 import { hashString } from "./util.ts";
+import { inkFromRGBA, synthDessinTile, synthKey } from "./dessin.ts";
+import type { Params } from "./types.ts";
 
 const f3 = (v: number) => (Math.round(v * 1000) / 1000).toString();
 
@@ -60,6 +62,28 @@ export interface ElementGeom {
 }
 
 /** Calcule la géométrie d'un objet (texte composé, forme, logo). Mise en cache. */
+/** Rendus des objets dessinés (lourds : 16 Mo en 2048 px) — on n'en garde que quelques-uns. */
+const drawnCache = new Map<string, Asset>();
+
+/** Objet repris dans l'Atelier : le dessin passé par les curseurs de matière, en niveaux de gris. */
+function drawnBitmap(a: Asset, p: Params): Asset {
+  const id = "rendu|" + a.id + "|" + hashString(synthKey(p));
+  const hit = drawnCache.get(id);
+  if (hit) return hit;
+  const n = a.width;
+  const tile = synthDessinTile(inkFromRGBA(a.rgba!, a.width, n), n, p);
+  const rgba = new Uint8ClampedArray(n * n * 4);
+  for (let i = 0; i < n * n; i++) {
+    const v = 255 - Math.round(tile[i] * 255);
+    rgba[i * 4] = rgba[i * 4 + 1] = rgba[i * 4 + 2] = v;
+    rgba[i * 4 + 3] = 255;
+  }
+  const out: Asset = { id, kind: "image", name: a.name, width: n, height: n, rgba };
+  drawnCache.set(id, out);
+  if (drawnCache.size > 4) drawnCache.delete(drawnCache.keys().next().value!);
+  return out;
+}
+
 export async function elementGeom(doc: Doc, l: Layer, fonts: FontStore, assets: Map<string, Asset>, cache: Map<string, unknown>): Promise<ElementGeom> {
   const lay = doc.layout;
   const key =
@@ -90,7 +114,11 @@ export async function elementGeom(doc: Doc, l: Layer, fonts: FontStore, assets: 
   } else if (kind === "image") {
     const a = l.assetId ? assets.get(l.assetId) : undefined;
     if (a?.kind === "vecteur") g.vector = a.vector;
-    else if (a?.rgba) g.bitmap = a;
+    else if (a?.kind === "dessin" && a.rgba && l.image?.dessin) {
+      // pas dans le cache général : trop lourd ; drawnBitmap garde les derniers rendus
+      g.bitmap = drawnBitmap(a, l.image.dessin);
+      return g;
+    } else if (a?.rgba) g.bitmap = a;
     else g.empty = true;
   }
   cache.set(key, g);
@@ -128,6 +156,12 @@ async function bitmapOf(a: Asset): Promise<ImageBitmap> {
     }
     b = await createImageBitmap(new ImageData(px, a.width, a.height));
     bitmapCache.set(a.id, b);
+    // les rendus d'objets dessinés changent à chaque réglage : on borne la mémoire
+    if (bitmapCache.size > 16) {
+      const old = bitmapCache.keys().next().value!;
+      bitmapCache.get(old)?.close();
+      bitmapCache.delete(old);
+    }
   }
   return b;
 }

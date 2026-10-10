@@ -18,6 +18,8 @@ export interface ParamDef {
   /** Plage du tirage « Mosh » : bas = 40 % inférieurs, haut = 25 % supérieurs. */
   rand?: "bas" | "haut" | "tout" | "non";
   hint?: string;
+  /** Curseur logarithmique (plages très larges). */
+  log?: boolean;
 }
 
 export interface EffectCtx {

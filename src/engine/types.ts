@@ -89,6 +89,19 @@ export interface ShapeSpec {
 
 export interface ImageSpec {
   fit: "contenir" | "remplir" | "etirer";
+  /** Objet dessiné dans l'Atelier : réglages de la matière (l'asset est alors un dessin). */
+  dessin?: Params;
+}
+
+/** Ce qu'était un objet avant d'être repris à la main dans l'Atelier (pour revenir en arrière). */
+export interface BeforeDrawing {
+  kind: LayerKind;
+  name: string;
+  box: Box;
+  text?: TextSpec;
+  shape?: ShapeSpec;
+  image?: ImageSpec;
+  assetId?: string;
 }
 
 /** Comment l'objet est encré : aplat (teinte) ou texture (source + pile d'effets du calque). */
@@ -120,6 +133,8 @@ export interface Layer {
   fxOnShape?: boolean;
   /** Position verrouillée sur la planche. */
   pinned?: boolean;
+  /** Objet repris dans l'Atelier : sa version d'origine. */
+  avantDessin?: BeforeDrawing;
 }
 
 export interface Guide {

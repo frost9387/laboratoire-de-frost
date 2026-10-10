@@ -1,7 +1,18 @@
 // Client du worker de rendu : chaque demande renvoie une promesse ; les aperçus périmés sont ignorés.
-import type { Asset, Doc, Intent, Params, ProfileInfo } from "../engine/types.ts";
+import type { Asset, Doc, Intent, Layer, Params, ProfileInfo } from "../engine/types.ts";
 import type { LoupeReq, PreviewReq, PreviewRes } from "../engine/preview.ts";
 import type { ExportOptions, ExportResult } from "../export/exporter.ts";
+
+export interface RasterRes {
+  /** Couverture 0..255 (encre), w × h. */
+  alpha: Uint8Array;
+  w: number;
+  h: number;
+  /** Coin du recadrage dans le cadre de l'objet (px). */
+  ox: number;
+  oy: number;
+  pxPerMm: number;
+}
 
 export interface ImageRes {
   rgba: Uint8ClampedArray;
@@ -70,8 +81,14 @@ class RenderClient {
     return this.latest<ImageRes>("loupe", { doc, req });
   }
 
-  dessin(assetId: string, params: Params, size: number) {
-    return this.latest<ImageRes>("dessin", { assetId, params, size });
+  /** Aperçu de la texture dessinée répétée (`tiles` tuiles sur `size` px). */
+  dessin(assetId: string, params: Params, size: number, tiles = 2.5) {
+    return this.latest<ImageRes>("dessin", { assetId, params, size, tiles });
+  }
+
+  /** Rend un objet de mise en page à plat (sans rotation), à `pxPerMm` ; `crop` = recadré sur l'encre. */
+  raster(doc: Doc, layer: Layer, pxPerMm: number, crop: boolean): Promise<RasterRes> {
+    return this.call<RasterRes>({ type: "raster", doc, layer, pxPerMm, crop });
   }
 
   /** Liste des objets texte dont le contenu déborde du cadre. */

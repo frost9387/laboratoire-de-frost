@@ -15,7 +15,8 @@ import { mountDocument } from "./ui/windows/document.ts";
 import { mountCouches } from "./ui/windows/couches.ts";
 import { mountPile } from "./ui/windows/pile.ts";
 import { mountTrame } from "./ui/windows/trame.ts";
-import { mountAtelier } from "./ui/windows/atelier.ts";
+import { mountAtelier, type AtelierApi } from "./ui/windows/atelier.ts";
+import type { AtelierBridge } from "./ui/windows/couches.ts";
 import { mountLoupe } from "./ui/windows/loupe.ts";
 import { mountExport } from "./ui/windows/exporter.ts";
 import { mountGrille } from "./ui/windows/grille.ts";
@@ -69,12 +70,14 @@ const keys = wm.create({ id: "raccourcis", title: "Raccourcis clavier", x: Math.
 
 const focusText: { fn?: () => void } = {};
 const plancheApi = mountPlanche(planche, focusText);
-mountCouches(couches, () => atelier.open(), focusText);
+const atelierBridge: AtelierBridge = { open: () => atelier.open(), fromObject: (id) => atelierApi?.fromObject(id) };
+let atelierApi: AtelierApi | null = null;
+mountCouches(couches, atelierBridge, focusText);
 mountDocument(docWin);
 mountPile(pile);
 mountTrame(trame);
 mountGrille(grille);
-mountAtelier(atelier, () => aiHelp.open());
+atelierApi = mountAtelier(atelier, () => aiHelp.open());
 mountLoupe(loupe, plancheApi);
 mountExport(exportWin);
 mountAbout(about);
