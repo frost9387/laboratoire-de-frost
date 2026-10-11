@@ -92,7 +92,7 @@ export function mountAccueil(win: Win, actions: { openProject: () => void; openG
 
   function create() {
     const t = TEMPLATES.find((x) => x.id === tpl)!;
-    newDocument(t.make(), dest);
+    newDocument(t.make(), dest, t.finish?.bind(t));
     win.close();
     toast("C'est parti !", `${t.label} — réglé pour : ${DESTINATION_BY_ID[dest].label}. Tout reste modifiable.`, "ok", 7000);
   }

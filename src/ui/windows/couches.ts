@@ -15,18 +15,23 @@ import type { Layer, Params, ShapeType, SourceType } from "../../engine/types.ts
 import type { Win } from "../wm.ts";
 
 export function paramControls(defs: ParamDef[], params: Params, onChange: (k: string, v: number | string | boolean, live: boolean) => void): HTMLElement[] {
-  return defs.map((d) => {
-    if (d.kind === "select") return select(d.label, String(params[d.key]), d.options!, (v) => onChange(d.key, v, false), d.hint);
-    if (d.kind === "bool") {
-      const box = h("input", { type: "checkbox", checked: Boolean(params[d.key]) });
-      box.addEventListener("change", () => onChange(d.key, box.checked, false));
-      return h("label", { class: "row check", title: d.hint ?? "" }, box, h("span", null, d.label));
-    }
-    return slider({
-      label: d.label, value: Number(params[d.key]), min: d.min!, max: d.max!, step: d.step, unit: d.unit, def: Number(d.def), hint: d.hint, log: d.log,
-      onInput: (v) => onChange(d.key, v, true),
-      onCommit: () => store.commit(),
-    });
+  return defs.flatMap((d) => {
+    const ctl = paramControl(d, params, onChange);
+    return d.section ? [h("div", { class: "pc-sec" }, d.section), ctl] : [ctl];
+  });
+}
+
+function paramControl(d: ParamDef, params: Params, onChange: (k: string, v: number | string | boolean, live: boolean) => void): HTMLElement {
+  if (d.kind === "select") return select(d.label, String(params[d.key]), d.options!, (v) => onChange(d.key, v, false), d.hint);
+  if (d.kind === "bool") {
+    const box = h("input", { type: "checkbox", checked: Boolean(params[d.key]) });
+    box.addEventListener("change", () => onChange(d.key, box.checked, false));
+    return h("label", { class: "row check", title: d.hint ?? "" }, box, h("span", null, d.label));
+  }
+  return slider({
+    label: d.label, value: Number(params[d.key]), min: d.min!, max: d.max!, step: d.step, unit: d.unit, def: Number(d.def), hint: d.hint, log: d.log,
+    onInput: (v) => onChange(d.key, v, true),
+    onCommit: () => store.commit(),
   });
 }
 

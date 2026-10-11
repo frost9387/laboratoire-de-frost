@@ -1,4 +1,4 @@
-# ❄ Le laboratoire de Frost — v0.3
+# ❄ Le laboratoire de Frost — v0.4
 
 Logiciel de **textures imprimables et de mise en page** pour graphistes. Une seule base de code : **version web** (navigateur) et **version bureau** (Windows/Mac, Electron).
 
@@ -10,7 +10,7 @@ Logiciel de **textures imprimables et de mise en page** pour graphistes. Une seu
 | **Bureau, depuis les sources** | double-clic sur `Lancer-Laboratoire-de-Frost.bat` (ou `npm run desktop`) |
 | **Web** | double-clic sur `Lancer-version-web.bat` → http://localhost:5178 (ou `npm run dev`) |
 | **Refaire la version portable** | `npm run portable` |
-| **Installateur Windows** | `release/Laboratoire-de-Frost-Setup-0.3.0.exe` — à refaire avec `npm run installer` |
+| **Installateur Windows** | `release/Laboratoire-de-Frost-Setup-0.4.0.exe` — à refaire avec `npm run installer` |
 | **Tests du moteur** | `node --experimental-strip-types tests/engine.test.ts <dossier>` puis `python -I tests/verify_exports.py <dossier>` |
 
 Prérequis pour les sources : Node.js. La première fois, `npm install`.
@@ -66,6 +66,22 @@ Liste complète : menu Aide → Raccourcis (les touches s'affichent en ⌘ sur M
 4. **Planche** : seule la zone visible est recalculée, même très zoomé. **Loupe** (Affichage) : la vraie trame à la résolution de sortie ; elle reste au premier plan et se place d'un clic, y compris sur un texte.
 5. **✎ Atelier** : dessine une tuile, règle la matière, écris une consigne et clique **✦ Améliorer avec l'IA** (voir ci-dessous).
 6. **Exporter** (Ctrl/⌘ + E) : JPG, PNG, SVG, TIFF.
+
+## Frost's Special (v0.4)
+
+L'effet signature, dans **Pile d'effets → Signature**. Il transforme n'importe quelle couche (dessin de l'Atelier, photo importée, texte, logo, texture) en **crayon litho + linogravure** : masses noires dont les bords partent en grain, stries de pinceau, lignes gravées qui suivent les formes, entailles blanches à la gouge. Tout est en noir et blanc franc, prêt pour la riso ou la sérigraphie (trame conseillée : **Seuil (trait) 50 %**).
+
+| Section | Réglages |
+|---|---|
+| Tracé | Tracé des traits (échos des formes, courbes de niveau, ondes parallèles, tourbillon) · angle des ondes · ondulation · écart des lignes · lignes ↔ grain |
+| Crayon & pinceau | grain du papier · stries du pinceau · longueur des stries · encrage |
+| Bords & halo | estompe des bords · halo · force du halo · bords déchirés · poussière |
+| Gouges (linogravure) | gouges blanches · écart des gouges · sens des gouges |
+
+- **Recettes** en tête de la carte : *Linogravure — gouges et crayon*, *Peigne d'échos autour des formes*, *Ondes peignées*, *Crayon litho seul*, *Tourbillon gravé*, *Courbes de niveau (photo)*. Tout reste réglable ensuite ; clic droit sur un curseur = valeur par défaut ; MOSH tire aussi ses réglages.
+- Sur un texte ou un logo, cocher « Les effets déforment aussi la forme » : le halo et les échos débordent alors de la lettre.
+- Modèle **Frost's Special** sur l'écran d'accueil : A3 noir et blanc, ondes peignées et titre en linogravure.
+- Recettes de départ : un dessin au pinceau dans l'Atelier + *Linogravure* ; une photo (Image importée) + *Courbes de niveau* ; un bruit procédural « nuages » + *Ondes peignées*.
 
 ## L'Atelier de dessin (v0.3)
 

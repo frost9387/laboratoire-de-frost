@@ -15,7 +15,7 @@ export function mountAbout(win: Win) {
     h("div", { class: "about" },
       h("div", { class: "ascii", "aria-hidden": "true" }, FLAKE),
       h("div", { class: "big" }, "Le laboratoire de Frost"),
-      h("div", { class: "ver" }, "Version 0.3 — l'Atelier aux 18 outils"),
+      h("div", { class: "ver" }, "Version 0.4 — Frost's Special"),
       h("p", null, "Textures et mises en page imprimables pour graphistes : texte, logos, formes, grilles, trames AM, stochastiques et FM, profils ICC, séparations et exports print."),
       h("p", { class: "muted" }, "Couleurs : LittleCMS (MIT). Contours de texte : opentype.js (MIT). Polices : Inter, EB Garamond, Space Mono, Orbitron, Silkscreen, VT323 (OFL)."),
     ),

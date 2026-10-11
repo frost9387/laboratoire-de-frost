@@ -62,7 +62,7 @@ export interface SessionOpts {
 }
 
 /** Effets qui déplacent ou redessinent la silhouette (les autres ne changent que le ton). */
-const SHAPE_EFFECTS = new Set(["miroir", "kaleido", "repetition", "onde", "fonte", "tourbillon", "tranches", "tripixels", "pixelliser", "epaisseur", "flou", "contours"]);
+const SHAPE_EFFECTS = new Set(["frost", "miroir", "kaleido", "repetition", "onde", "fonte", "tourbillon", "tranches", "tripixels", "pixelliser", "epaisseur", "flou", "contours"]);
 
 /**
  * Champs d'un objet dont les effets déforment la forme (2 canaux) :

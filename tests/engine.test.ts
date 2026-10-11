@@ -172,6 +172,64 @@ console.log("Atelier (dessin → matière)");
   ok(o.rugosite === 0 && o.grain === 0 && Number(o.nettete) >= 90, "un objet repris à la main garde son allure (rugosité et grain à 0, bords nets)");
 }
 
+// ---------------------------------------------------------------- Frost's Special (gravure litho)
+console.log("Frost's Special");
+{
+  const { EFFECT_BY_TYPE, defaultParams } = await import("../src/engine/effects.ts");
+  const def = EFFECT_BY_TYPE.frost;
+  const base = defaultParams(def);
+  const cover = (f: Float32Array) => {
+    let s = 0;
+    for (const v of f) s += v;
+    return s / f.length;
+  };
+  const flat = (v: number, n: number) => new Float32Array(n * n).fill(v);
+  const neutral = { ...base, halo: 0, estompe: 0, gouges: 0, poussiere: 0, dechire: 0 };
+  const n = 600;
+  const g30 = cover(def.apply(flat(0.3, n), n, n, { ...neutral, lignes: 0 }, { ppi: 300, seed: 5 }));
+  const l30 = cover(def.apply(flat(0.3, n), n, n, { ...neutral, lignes: 100, trace: "ondes" }, { ppi: 300, seed: 5 }));
+  ok(Math.abs(g30 - 0.3) < 0.03 && Math.abs(l30 - 0.3) < 0.04, `l'encre suit le ton : gris 30 % → ${(g30 * 100).toFixed(1)} % en grain, ${(l30 * 100).toFixed(1)} % en lignes`);
+  const paper = cover(def.apply(flat(0, n), n, n, base, { ppi: 300, seed: 5 }));
+  ok(paper < 0.003, `le papier reste propre (${(paper * 100).toFixed(2)} % de poussière)`);
+  const solid = cover(def.apply(flat(1, n), n, n, { ...base, gouges: 0 }, { ppi: 300, seed: 5 }));
+  ok(solid > 0.995, `un aplat reste plein sans gouges (${(solid * 100).toFixed(2)} %)`);
+  const gouged = cover(def.apply(flat(1, n), n, n, base, { ppi: 300, seed: 5 }));
+  ok(gouged < solid && gouged > 0.8, `les gouges entaillent l'aplat (${(gouged * 100).toFixed(1)} % d'encre)`);
+  // un disque de 20 mm sur 60 mm : même dessin à 150 et 300 ppi, halo et échos autour
+  const disc = (ppi: number) => {
+    const m = Math.round((60 / 25.4) * ppi);
+    const f = new Float32Array(m * m);
+    for (let y = 0; y < m; y++)
+      for (let x = 0; x < m; x++) if (Math.hypot(((x + 0.5) / ppi) * 25.4 - 30, ((y + 0.5) / ppi) * 25.4 - 30) < 10) f[y * m + x] = 1;
+    return { f, m };
+  };
+  const covAt = (ppi: number, p: Record<string, number | string>) => {
+    const { f, m } = disc(ppi);
+    return cover(def.apply(f, m, m, p, { ppi, seed: 9 }));
+  };
+  const c150 = covAt(150, base);
+  const c300 = covAt(300, base);
+  ok(Math.abs(c150 - c300) < 0.015, `même dessin à 150 et 300 ppi (${(c150 * 100).toFixed(1)} % / ${(c300 * 100).toFixed(1)} %)`);
+  const plain = Math.PI * 100 / 3600;
+  const echo = covAt(150, { ...base, trace: "echos", lignes: 65, halo: 14, forceHalo: 65, gouges: 0 });
+  ok(echo > plain + 0.01, `les échos et le halo débordent de la forme (${(echo * 100).toFixed(1)} % contre ${(plain * 100).toFixed(1)} % pour le disque seul)`);
+  for (const pr of def.presets ?? []) {
+    const v = covAt(100, { ...base, ...pr.params });
+    if (!(v > 0.02 && v < 0.6)) ok(false, `recette « ${pr.label} » : couverture anormale ${(v * 100).toFixed(1)} %`);
+  }
+  ok(true, `${def.presets?.length ?? 0} recettes rendues sans erreur`);
+  // A4 à 300 ppi : le temps d'un export
+  const W = 2480;
+  const H = 3508;
+  const a4 = new Float32Array(W * H);
+  for (let y = 0; y < H; y++)
+    for (let x = 0; x < W; x++) if (Math.hypot(x - W / 2, y - H / 2) < 700 || Math.abs(y - 900 - 200 * Math.sin(x / 300)) < 90) a4[y * W + x] = 1;
+  const t0 = performance.now();
+  def.apply(a4, W, H, base, { ppi: 300, seed: 3 });
+  const ms = performance.now() - t0;
+  ok(ms < 20000, `A4 à 300 ppi en ${(ms / 1000).toFixed(1)} s`);
+}
+
 // ---------------------------------------------------------------- texte (contours vectoriels)
 console.log("Composition du texte");
 {

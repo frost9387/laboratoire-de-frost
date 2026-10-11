@@ -51,11 +51,12 @@ export function newSeed() {
   store.update((d) => (d.settings.seed = Math.floor(Math.random() * 99999) + 1));
 }
 
-export function newDocument(doc: Doc = defaultDoc(), destination?: string) {
+export function newDocument(doc: Doc = defaultDoc(), destination?: string, finish?: (d: Doc) => void) {
   const best = preferredCmyk(store.profiles);
   if (best) doc.settings.profileId = best;
   doc = migrateDoc(doc);
   if (destination) applyDestination(doc, destination, store.profiles);
+  finish?.(doc);
   store.replace(doc);
   armAutosave();
 }

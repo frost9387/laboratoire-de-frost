@@ -319,3 +319,6 @@ textarea.text-content { font: 13px var(--f-ui); min-height: 64px; margin-bottom:
 .steps li.done b { text-decoration: line-through; }
 .win.flash { animation: flash .3s steps(2) 5; }
 @keyframes flash { 50% { outline: 4px solid var(--frost); outline-offset: 2px; } }
+
+/* intertitres des effets à nombreux réglages (Frost's Special) */
+.pc-sec { font: 7px var(--f-pix); text-transform: uppercase; letter-spacing: .5px; border-bottom: 1px dotted #000; margin: 8px 0 3px; padding-bottom: 1px; }

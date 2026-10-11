@@ -2,7 +2,7 @@
 import { h } from "../dom.ts";
 import { button, note } from "../widgets.ts";
 import { store } from "../../app/store.ts";
-import { EFFECTS, EFFECT_BY_TYPE } from "../../engine/effects.ts";
+import { EFFECTS, EFFECT_BY_TYPE, defaultParams } from "../../engine/effects.ts";
 import { addEffect, mosh } from "../../app/actions.ts";
 import { paramControls } from "./couches.ts";
 import { uid } from "../../engine/util.ts";
@@ -46,8 +46,17 @@ export function mountPile(win: Win) {
       button("⧉", () => updFx(fx.id, (f, list) => { const k = list.findIndex((e) => e.id === fx.id); list.splice(k + 1, 0, { ...JSON.parse(JSON.stringify(f)), id: uid("fx"), locked: false }); }), { cls: "small icon", title: "Dupliquer" }),
       button("✕", () => updFx(fx.id, (_f, list) => { const k = list.findIndex((e) => e.id === fx.id); list.splice(k, 1); }), { cls: "small icon", title: "Supprimer" }),
     );
+    let recipe: HTMLElement | null = null;
+    if (isOpen && def?.presets?.length) {
+      const sel = h("select", { class: "pop", "aria-label": "Recette" }, h("option", { value: "" }, "Choisir une recette…"), ...def.presets.map((pr, k) => h("option", { value: String(k) }, pr.label)));
+      sel.addEventListener("change", () => {
+        const pr = def.presets![Number(sel.value)];
+        if (pr) updFx(fx.id, (f) => (f.params = { ...defaultParams(def), ...pr.params }));
+      });
+      recipe = h("div", { class: "row" }, h("label", null, "Recette"), sel);
+    }
     const body = isOpen && def
-      ? h("div", { class: "fx-body" }, ...(def.params.length ? paramControls(def.params, fx.params, (k, v, live) => updFx(fx.id, (f) => (f.params[k] = v), live)) : [h("p", { class: "muted" }, "Pas de réglage.")]))
+      ? h("div", { class: "fx-body" }, recipe, ...(def.params.length ? paramControls(def.params, fx.params, (k, v, live) => updFx(fx.id, (f) => (f.params[k] = v), live)) : [h("p", { class: "muted" }, "Pas de réglage.")]))
       : null;
     return h("div", { class: "fx" + (fx.on ? "" : " off") + (isOpen ? " open" : "") }, head, body);
   }
@@ -55,7 +64,7 @@ export function mountPile(win: Win) {
   function render() {
     const l = store.layer;
     const addSel = h("select", { class: "pop", "aria-label": "Effet à ajouter" });
-    for (const g of ["Tons", "Matière", "Géométrie", "Déformation", "Glitch"] as const) {
+    for (const g of ["Signature", "Tons", "Matière", "Géométrie", "Déformation", "Glitch"] as const) {
       const og = h("optgroup", { label: g });
       for (const e of EFFECTS.filter((x) => x.group === g)) og.append(h("option", { value: e.type }, e.label));
       addSel.append(og);

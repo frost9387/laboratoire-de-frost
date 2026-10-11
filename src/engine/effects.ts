@@ -4,6 +4,7 @@ import type { ParamValue, Params } from "./types.ts";
 import { blur, morph } from "./field.ts";
 import { Perlin } from "./noise.ts";
 import { clamp01, hash3, mmToPx, sampleBilinear, rng } from "./util.ts";
+import { frostSpecial } from "./frostSpecial.ts";
 
 export interface ParamDef {
   key: string;
@@ -20,6 +21,8 @@ export interface ParamDef {
   hint?: string;
   /** Curseur logarithmique (plages très larges). */
   log?: boolean;
+  /** Intertitre affiché avant ce réglage (effets à nombreux réglages). */
+  section?: string;
 }
 
 export interface EffectCtx {
@@ -30,8 +33,10 @@ export interface EffectCtx {
 export interface EffectDef {
   type: string;
   label: string;
-  group: "Tons" | "Matière" | "Géométrie" | "Déformation" | "Glitch";
+  group: "Signature" | "Tons" | "Matière" | "Géométrie" | "Déformation" | "Glitch";
   params: ParamDef[];
+  /** Recettes : points de départ réglés d'un clic (tous les réglages restent modifiables). */
+  presets?: { label: string; params: Params }[];
   apply(ch: Float32Array, w: number, h: number, p: Params, ctx: EffectCtx): Float32Array;
 }
 
@@ -54,6 +59,45 @@ const map = (ch: Float32Array, fn: (v: number) => number) => {
 };
 
 export const EFFECTS: EffectDef[] = [
+  {
+    type: "frost",
+    label: "Frost's Special",
+    group: "Signature",
+    params: [
+      {
+        key: "trace", label: "Tracé des traits", kind: "select", def: "echos", rand: "tout", section: "Tracé",
+        options: [["echos", "Échos des formes"], ["niveaux", "Courbes de niveau"], ["ondes", "Ondes parallèles"], ["tourbillon", "Tourbillon"]],
+        hint: "Le chemin que suivent les lignes gravées et les stries du pinceau.\nÉchos : des contours concentriques autour de ce qui est encré.",
+      },
+      { key: "angle", label: "Angle des ondes", kind: "range", min: -90, max: 90, step: 1, def: -8, unit: "°", rand: "tout", hint: "Direction des ondes parallèles et des gouges « en ondes »." },
+      { key: "ondulation", label: "Ondulation", kind: "range", min: 0, max: 20, step: 0.1, def: 2, unit: "mm", rand: "tout", hint: "Les traits ondulent comme tirés à main levée." },
+      { key: "ecart", label: "Écart des lignes", kind: "range", min: 0.3, max: 20, step: 0.05, def: 1.4, unit: "mm", log: true, rand: "bas" },
+      { key: "lignes", label: "Lignes ↔ grain", kind: "range", min: 0, max: 100, step: 1, def: 25, unit: "%", rand: "tout", hint: "0 % : les gris deviennent du grain de crayon. 100 % : des lignes gravées dont l'épaisseur suit le ton." },
+      { key: "grain", label: "Grain du papier", kind: "range", min: 0.03, max: 1, step: 0.01, def: 0.08, unit: "mm", log: true, rand: "bas", section: "Crayon & pinceau" },
+      { key: "stries", label: "Stries du pinceau", kind: "range", min: 0, max: 100, step: 1, def: 55, unit: "%", rand: "tout", hint: "Traces des poils, étirées le long du tracé." },
+      { key: "longueur", label: "Longueur des stries", kind: "range", min: 0.5, max: 30, step: 0.1, def: 4, unit: "mm", log: true, rand: "tout" },
+      { key: "encrage", label: "Encrage", kind: "range", min: -100, max: 100, step: 1, def: 0, unit: "%", rand: "tout", hint: "Plus : le crayon charge les gris. Moins : il les allège. Le papier et les aplats ne bougent pas." },
+      { key: "estompe", label: "Estompe des bords", kind: "range", min: 0, max: 10, step: 0.05, def: 1.2, unit: "mm", rand: "bas", section: "Bords & halo", hint: "Les bords des masses noires se défont en grain sur cette largeur." },
+      { key: "halo", label: "Halo", kind: "range", min: 0, max: 40, step: 0.5, def: 7, unit: "mm", rand: "tout", hint: "Zone autour des formes où naissent le grain frotté et les lignes d'écho." },
+      { key: "forceHalo", label: "Force du halo", kind: "range", min: 0, max: 100, step: 1, def: 55, unit: "%", rand: "tout" },
+      { key: "dechire", label: "Bords déchirés", kind: "range", min: 0, max: 100, step: 1, def: 55, unit: "%", rand: "tout", hint: "Irrégularité : bords rongés, pression inégale (des bords restent nets, d'autres partent en grain), lignes qui se cassent." },
+      { key: "poussiere", label: "Poussière", kind: "range", min: 0, max: 100, step: 1, def: 8, unit: "%", rand: "bas", hint: "Petits éclats d'encre sur le papier." },
+      { key: "gouges", label: "Gouges blanches", kind: "range", min: 0, max: 60, step: 1, def: 14, unit: "%", rand: "bas", section: "Gouges (linogravure)", hint: "Entailles blanches en fuseau taillées dans les noirs, comme à la gouge." },
+      { key: "ecartGouges", label: "Écart des gouges", kind: "range", min: 0.5, max: 30, step: 0.1, def: 4, unit: "mm", log: true, rand: "tout" },
+      { key: "sensGouges", label: "Sens des gouges", kind: "select", def: "ondes", rand: "tout", options: [["ondes", "En ondes (angle ci-dessus)"], ["trace", "Le long du tracé"]] },
+    ],
+    presets: [
+      { label: "Linogravure — gouges et crayon", params: {} },
+      { label: "Peigne d'échos autour des formes", params: { trace: "echos", lignes: 65, ecart: 1.3, gouges: 0, estompe: 0.8, halo: 14, forceHalo: 65, stries: 40, dechire: 60 } },
+      { label: "Ondes peignées", params: { trace: "ondes", angle: -20, lignes: 70, ecart: 1.6, ondulation: 6, gouges: 0, estompe: 0.5, halo: 0, stries: 45, dechire: 50 } },
+      { label: "Crayon litho seul", params: { lignes: 0, gouges: 0, estompe: 1.8, halo: 5, forceHalo: 45, stries: 60, dechire: 50, poussiere: 12 } },
+      { label: "Tourbillon gravé", params: { trace: "tourbillon", lignes: 60, ecart: 1.8, ondulation: 3, gouges: 10, sensGouges: "trace", halo: 10, forceHalo: 60 } },
+      { label: "Courbes de niveau (photo)", params: { trace: "niveaux", lignes: 55, ecart: 1.2, estompe: 0.4, halo: 0, gouges: 8, dechire: 45 } },
+    ],
+    apply(ch, w, h, p, ctx) {
+      return frostSpecial(ch, w, h, p, ctx.ppi, ctx.seed);
+    },
+  },
   {
     type: "niveaux",
     label: "Niveaux",

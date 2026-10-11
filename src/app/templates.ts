@@ -2,6 +2,8 @@
 import type { Doc, Layer } from "../engine/types.ts";
 import { defaultDoc, newElement, newLayer, FORMATS, SPOT_INKS } from "../engine/doc.ts";
 import { uid } from "../engine/util.ts";
+import { EFFECT_BY_TYPE, defaultParams } from "../engine/effects.ts";
+import { defaultScreen } from "../engine/screens.ts";
 
 export interface Template {
   id: string;
@@ -10,6 +12,15 @@ export interface Template {
   hint: string;
   destination: string;
   make(): Doc;
+  /** Retouche appliquée APRÈS la destination (qui règle les trames). */
+  finish?(doc: Doc): void;
+}
+
+/** Effet Frost's Special prêt à poser : réglages par défaut + une recette éventuelle. */
+function frostFx(recipe = "", over: Record<string, number | string> = {}) {
+  const def = EFFECT_BY_TYPE.frost;
+  const pr = def.presets?.find((x) => x.label.startsWith(recipe));
+  return { id: uid("fx"), type: "frost", on: true, locked: false, params: { ...defaultParams(def), ...(recipe ? pr?.params : {}), ...over } };
 }
 
 const spot = (name: string) => {
@@ -32,6 +43,32 @@ function text(content: string, font: string, size: number, box: { x: number; y: 
 }
 
 export const TEMPLATES: Template[] = [
+  {
+    id: "frost-special", icon: "❄", label: "Frost's Special", hint: "A3 noir et blanc : ondes peignées et titre en linogravure.", destination: "riso",
+    make() {
+      const d = defaultDoc();
+      sized(d, "A3");
+      d.settings.name = "Frost's Special";
+      d.settings.mode = "directs";
+      const fond = newLayer("bruit", "Ondes peignées", 0);
+      fond.ink = spot("Noir");
+      fond.source.params = { ...fond.source.params, type: "nuages", echelle: 70, octaves: 4, contraste: 280, densite: 20 };
+      fond.effects = [frostFx("Ondes", { angle: -14 })];
+      const titre = text("FROST", "inter-900", 170, { x: 15, y: 160, w: 267, h: 80 }, spot("Noir"), "centre");
+      titre.fxOnShape = true;
+      titre.overprint = false;
+      titre.effects = [frostFx("", { halo: 12, forceHalo: 60 })];
+      d.layers = [fond, titre];
+      d.layout.margins = { top: 15, bottom: 15, inside: 15, outside: 15 };
+      d.activeLayerId = titre.id;
+      return d;
+    },
+    finish(d) {
+      // noir et blanc francs : un seuil à 50 %, pas de trame par-dessus le grain
+      for (const k of Object.keys(d.spotScreens)) d.spotScreens[k] = defaultScreen({ type: "seuil", level: 50 });
+      for (const k of Object.keys(d.cmykScreens) as (keyof Doc["cmykScreens"])[]) d.cmykScreens[k] = defaultScreen({ type: "seuil", level: 50 });
+    },
+  },
   {
     id: "affiche-riso", icon: "◍", label: "Affiche risographie", hint: "A3, deux encres, titre géant sur texture organique.", destination: "riso",
     make() {
