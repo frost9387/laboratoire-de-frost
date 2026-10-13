@@ -186,6 +186,8 @@ export interface ScreenInput {
   rdTile?: { n: number; t: Float32Array };
   /** Multiplicateur du ton (recette d'encre × teinte × couverture d'un objet). */
   gain?: number;
+  /** Le ton continu ne couvre qu'une découpe de la page, dont voici le coin (px du ton continu). */
+  crop?: { x: number; y: number };
 }
 
 /**
@@ -198,8 +200,16 @@ export function makeScreener(inp: ScreenInput) {
   const L = lut.length - 1;
   const scale = contonePpi / outDpi;
   const gain = inp.gain ?? 1;
+  const crop = inp.crop;
   const tone = (x: number, y: number) => {
-    const v = sampleBilinear(contone, cw, ch, (x + 0.5) * scale, (y + 0.5) * scale) * gain;
+    let fx = (x + 0.5) * scale;
+    let fy = (y + 0.5) * scale;
+    if (crop) {
+      fx -= crop.x;
+      fy -= crop.y;
+      if (fx < 0 || fy < 0 || fx > cw || fy > ch) return lut[0];
+    }
+    const v = sampleBilinear(contone, cw, ch, fx, fy) * gain;
     return lut[(v <= 0 ? 0 : v >= 1 ? 1 : v) * L + 0.5 | 0];
   };
   const theta = (spec.angle * Math.PI) / 180;

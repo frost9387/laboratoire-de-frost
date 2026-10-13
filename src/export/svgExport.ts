@@ -8,7 +8,7 @@ import { layerField, rdThreshold, runPlates, type Env } from "../engine/render.t
 import { makeScreener } from "../engine/screens.ts";
 import { elementGeom, fitVector, prepareBitmaps, rasterizeElement, svgTransform, type ElementGeom } from "../engine/elements.ts";
 import { amDots, RunMerger, svgDocument } from "./svg.ts";
-import { hasTonalEffects, openSession, sampleSilhouette, silhouetteBox } from "../engine/compose.ts";
+import { hasTonalEffects, openSession, sampleSilhouette, silhouetteBox, uncrop } from "../engine/compose.ts";
 import type { Field } from "../engine/field.ts";
 
 const f3 = (v: number) => (Math.round(v * 1000) / 1000).toString();
@@ -168,6 +168,7 @@ export async function exportSvg(
       const sess = await openSession({ ...doc, layers: [l] }, env, { dpi: svgDpi, cppi: p.cppi, screened: false, autoContone: false });
       const seg = sess.segs.find((x) => x.type === "el");
       shapeField = seg && seg.type === "el" ? seg.shapeField ?? undefined : undefined;
+      if (shapeField) shapeField = uncrop(shapeField, pxSize(box.wMm, p.cppi), pxSize(box.hMm, p.cppi));
     }
     const sc = p.cppi / svgDpi;
     const bb = shapeField ? silhouetteBox(shapeField, sc, spw, sph) : bboxPx(g);

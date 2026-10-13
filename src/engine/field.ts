@@ -5,6 +5,12 @@ export interface Field {
   w: number;
   h: number;
   ch: Float32Array[];
+  /**
+   * Découpe : le champ ne couvre que [ox, ox+w) × [oy, oy+h) de la page (px à sa résolution).
+   * Hors de la découpe, la valeur est 0 (papier). Absent = le champ couvre toute la page.
+   */
+  ox?: number;
+  oy?: number;
 }
 
 export function makeField(w: number, h: number, channels = 1, fill = 0): Field {

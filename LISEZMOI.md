@@ -1,4 +1,4 @@
-# ❄ Le laboratoire de Frost — v0.4
+# ❄ Le laboratoire de Frost — v0.5
 
 Logiciel de **textures imprimables et de mise en page** pour graphistes. Une seule base de code : **version web** (navigateur) et **version bureau** (Windows/Mac, Electron).
 
@@ -10,7 +10,7 @@ Logiciel de **textures imprimables et de mise en page** pour graphistes. Une seu
 | **Bureau, depuis les sources** | double-clic sur `Lancer-Laboratoire-de-Frost.bat` (ou `npm run desktop`) |
 | **Web** | double-clic sur `Lancer-version-web.bat` → http://localhost:5178 (ou `npm run dev`) |
 | **Refaire la version portable** | `npm run portable` |
-| **Installateur Windows** | `release/Laboratoire-de-Frost-Setup-0.4.0.exe` — à refaire avec `npm run installer` |
+| **Installateur Windows** | `release/Laboratoire-de-Frost-Setup-0.5.0.exe` — à refaire avec `npm run installer` |
 | **Tests du moteur** | `node --experimental-strip-types tests/engine.test.ts <dossier>` puis `python -I tests/verify_exports.py <dossier>` |
 
 Prérequis pour les sources : Node.js. La première fois, `npm install`.
@@ -66,6 +66,31 @@ Liste complète : menu Aide → Raccourcis (les touches s'affichent en ⌘ sur M
 4. **Planche** : seule la zone visible est recalculée, même très zoomé. **Loupe** (Affichage) : la vraie trame à la résolution de sortie ; elle reste au premier plan et se place d'un clic, y compris sur un texte.
 5. **✎ Atelier** : dessine une tuile, règle la matière, écris une consigne et clique **✦ Améliorer avec l'IA** (voir ci-dessous).
 6. **Exporter** (Ctrl/⌘ + E) : JPG, PNG, SVG, TIFF.
+
+## Médiéval-Pixel (v0.5)
+
+Dans **Pile d'effets → Signature**. La recette Photoshop « mode Bitmap en diffusion à basse résolution → agrandissement au plus proche → fond 0 % + contour → plusieurs copies superposées » en un seul effet.
+
+| Section | Réglages |
+|---|---|
+| Pixels | rendu (contours des amas = dentelle, point de croix, pixels pleins) · taille des pixels · tramage (Floyd-Steinberg, Atkinson, seuil net) · seuil · bavure · rotation de la grille |
+| Contour | épaisseur · position (centrée, intérieure, extérieure) |
+| Superposition | nombre de passes · décalage · écart de taille entre passes |
+
+Recettes : *Dentelle médiévale*, *Double contour net*, *Point de croix*, *Bitmap gros grain (illustrations)*, *Pixel net sans tramage*. Pour du **blanc sur couleur** : objet en teinte 0 % sans surimpression (il réserve l'encre du fond). Modèle **Médiéval-Pixel** à l'accueil. Nouveaux tampons d'ornement dans l'Atelier : **fleur de lys, volute, rinceau**.
+
+## Dots (v0.5)
+
+Dans **Pile d'effets → Signature**. Une grille de points dont la taille suit le ton, comme les générateurs en ligne : les points peuvent dépasser le pas et former des grappes.
+
+| Section | Réglages |
+|---|---|
+| Préparation de l'image | flou · grain · gamma · point noir · point blanc |
+| Points | seuil d'apparition · grille (régulière, Benday) · angle · pas · taille mini · taille maxi · arrondi des coins · bruit |
+
+Recettes : *Grappes de points*, *Benday (bande dessinée)*, *Trame classique*, *Pixels carrés*, *Grosses pastilles*, *Poussière*. Modèle **Dots** à l'accueil (riso trois encres).
+
+Les objets (textes, formes, logos) avec effets sont désormais calculés **dans une découpe autour d'eux** et non sur toute la page : jusqu'à 6 fois plus rapide et beaucoup moins de mémoire à l'export, pour un dessin identique.
 
 ## Frost's Special (v0.4)
 

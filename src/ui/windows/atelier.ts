@@ -119,11 +119,109 @@ const UI: Record<Tool, BKey[]> = {
 /** Outils qui peignent dans un calque de trait (l'opacité vaut pour tout le geste). */
 const BUFFERED = new Set<Tool>(["crayon", "pinceau", "plume", "feutre", "fusain", "sec", "aero", "points", "eclabous", "hachures", "tampon", "texte", "ligne", "rect", "ellipse"]);
 
-type ShapeKind = "cercle" | "carre" | "triangle" | "etoile" | "losange" | "croix" | "coeur" | "goutte" | "fleur";
+type ShapeKind = "cercle" | "carre" | "triangle" | "etoile" | "losange" | "croix" | "coeur" | "goutte" | "fleur" | "lys" | "volute" | "rinceau";
 const SHAPES: [ShapeKind, string][] = [
   ["cercle", "Cercle"], ["carre", "Carré"], ["triangle", "Triangle"], ["etoile", "Étoile"], ["losange", "Losange"],
   ["croix", "Croix"], ["coeur", "Cœur"], ["goutte", "Goutte"], ["fleur", "Fleur"],
+  ["lys", "Fleur de lys (ornement)"], ["volute", "Volute (ornement)"], ["rinceau", "Rinceau (ornement)"],
 ];
+
+/** Ornements (tampons) : dessinés en noir, centrés, dans un carré de ±R. */
+function drawOrnament(g: CanvasRenderingContext2D, kind: "lys" | "volute" | "rinceau", R: number, filled: boolean) {
+  g.fillStyle = g.strokeStyle = "#000";
+  g.lineCap = "round";
+  g.lineJoin = "round";
+  const paint = (p: Path2D) => {
+    if (filled) g.fill(p);
+    else {
+      g.lineWidth = 10;
+      g.stroke(p);
+    }
+  };
+  if (kind === "lys") {
+    const petal = (s: number) => {
+      const p = new Path2D();
+      p.moveTo(s * 0.12 * R, -0.02 * R);
+      p.bezierCurveTo(s * 0.32 * R, -0.62 * R, s * 1.0 * R, -0.62 * R, s * 0.92 * R, -0.18 * R);
+      p.bezierCurveTo(s * 0.88 * R, 0.02 * R, s * 0.68 * R, 0.1 * R, s * 0.58 * R, 0);
+      p.bezierCurveTo(s * 0.74 * R, -0.06 * R, s * 0.74 * R, -0.28 * R, s * 0.55 * R, -0.3 * R);
+      p.bezierCurveTo(s * 0.36 * R, -0.3 * R, s * 0.3 * R, -0.08 * R, s * 0.3 * R, 0.04 * R);
+      p.closePath();
+      return p;
+    };
+    const mid = new Path2D();
+    mid.moveTo(0, -R);
+    mid.bezierCurveTo(0.24 * R, -0.72 * R, 0.26 * R, -0.32 * R, 0.13 * R, 0.02 * R);
+    mid.lineTo(-0.13 * R, 0.02 * R);
+    mid.bezierCurveTo(-0.26 * R, -0.32 * R, -0.24 * R, -0.72 * R, 0, -R);
+    const band = new Path2D();
+    band.rect(-0.44 * R, 0.02 * R, 0.88 * R, 0.15 * R);
+    const foot = new Path2D();
+    foot.moveTo(-0.1 * R, 0.17 * R);
+    foot.lineTo(0.1 * R, 0.17 * R);
+    foot.bezierCurveTo(0.12 * R, 0.35 * R, 0.3 * R, 0.45 * R, 0.44 * R, 0.5 * R);
+    foot.bezierCurveTo(0.26 * R, 0.62 * R, 0.1 * R, 0.52 * R, 0, 0.78 * R);
+    foot.bezierCurveTo(-0.1 * R, 0.52 * R, -0.26 * R, 0.62 * R, -0.44 * R, 0.5 * R);
+    foot.bezierCurveTo(-0.3 * R, 0.45 * R, -0.12 * R, 0.35 * R, -0.1 * R, 0.17 * R);
+    foot.closePath();
+    for (const p of [mid, petal(1), petal(-1), band, foot]) paint(p);
+    return;
+  }
+  const lw = filled ? 18 : 10;
+  if (kind === "volute") {
+    const p = new Path2D();
+    for (let k = 0; k <= 240; k++) {
+      const t = k / 240;
+      const a = -Math.PI / 2 + t * Math.PI * 3.3;
+      const r = R * (0.92 * (1 - t) ** 1.25 + 0.07);
+      if (k) p.lineTo(r * Math.cos(a), r * Math.sin(a));
+      else p.moveTo(r * Math.cos(a), r * Math.sin(a));
+    }
+    g.lineWidth = lw;
+    g.stroke(p);
+    g.beginPath();
+    g.arc(R * 0.07 * Math.cos(Math.PI * 2.8), R * 0.07 * Math.sin(Math.PI * 2.8), lw * 0.9, 0, Math.PI * 2);
+    g.fill();
+    return;
+  }
+  // rinceau : deux bras qui s'enroulent, une goutte au centre, un bourgeon, deux feuilles
+  g.lineWidth = lw * 0.85;
+  for (const s of [-1, 1]) {
+    const arm = new Path2D();
+    arm.moveTo(0, 0.05 * R);
+    arm.bezierCurveTo(s * 0.3 * R, -0.5 * R, s * 0.8 * R, -0.55 * R, s * 0.92 * R, -0.15 * R);
+    const cx = s * 0.66 * R;
+    const cy = -0.1 * R;
+    const ex = s * 0.92 * R;
+    const ey = -0.15 * R;
+    const a0 = Math.atan2(ey - cy, ex - cx);
+    const r0 = Math.hypot(ex - cx, ey - cy);
+    for (let k = 1; k <= 80; k++) {
+      const t = k / 80;
+      const a = a0 + s * t * Math.PI * 2.2;
+      const r = r0 * (1 - 0.8 * t);
+      arm.lineTo(cx + r * Math.cos(a), cy + r * Math.sin(a));
+    }
+    g.stroke(arm);
+    g.save();
+    g.translate(s * 0.36 * R, -0.44 * R);
+    g.rotate(-s * 0.7);
+    g.beginPath();
+    g.ellipse(0, 0, 0.17 * R, 0.06 * R, 0, 0, Math.PI * 2);
+    filled ? g.fill() : g.stroke();
+    g.restore();
+  }
+  const drop = new Path2D();
+  drop.moveTo(0, 0);
+  drop.bezierCurveTo(0.17 * R, 0.3 * R, 0.08 * R, 0.6 * R, 0, 0.86 * R);
+  drop.bezierCurveTo(-0.08 * R, 0.6 * R, -0.17 * R, 0.3 * R, 0, 0);
+  const bud = new Path2D();
+  bud.moveTo(0, -0.04 * R);
+  bud.bezierCurveTo(0.11 * R, -0.2 * R, 0.07 * R, -0.38 * R, 0, -0.5 * R);
+  bud.bezierCurveTo(-0.07 * R, -0.38 * R, -0.11 * R, -0.2 * R, 0, -0.04 * R);
+  paint(drop);
+  paint(bud);
+}
 
 type Sym = "aucune" | "x" | "y" | "xy" | "rad4" | "rad6" | "rad8" | "kaleido";
 
@@ -560,6 +658,11 @@ export function mountAtelier(win: Win, openAiHelp: () => void): AtelierApi {
     const p = new Path2D();
     const poly = (pts: [number, number][]) => { pts.forEach(([x, y], i) => (i ? p.lineTo(x, y) : p.moveTo(x, y))); p.closePath(); };
     const R = filled ? 122 : 112;
+    if (kind === "lys" || kind === "volute" || kind === "rinceau") {
+      drawOrnament(g, kind, R, filled);
+      shapeTipCache.set(key, c);
+      return c;
+    }
     switch (kind) {
       case "cercle": p.arc(0, 0, R, 0, Math.PI * 2); break;
       case "carre": p.rect(-R * 0.86, -R * 0.86, R * 1.72, R * 1.72); break;

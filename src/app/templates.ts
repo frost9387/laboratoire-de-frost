@@ -16,11 +16,29 @@ export interface Template {
   finish?(doc: Doc): void;
 }
 
-/** Effet Frost's Special prêt à poser : réglages par défaut + une recette éventuelle. */
-function frostFx(recipe = "", over: Record<string, number | string> = {}) {
-  const def = EFFECT_BY_TYPE.frost;
+/** Effet « signature » prêt à poser : réglages par défaut + une recette éventuelle. */
+function signatureFx(type: string, recipe = "", over: Record<string, number | string> = {}) {
+  const def = EFFECT_BY_TYPE[type];
   const pr = def.presets?.find((x) => x.label.startsWith(recipe));
-  return { id: uid("fx"), type: "frost", on: true, locked: false, params: { ...defaultParams(def), ...(recipe ? pr?.params : {}), ...over } };
+  return { id: uid("fx"), type, on: true, locked: false, params: { ...defaultParams(def), ...(recipe ? pr?.params : {}), ...over } };
+}
+const frostFx = (recipe = "", over: Record<string, number | string> = {}) => signatureFx("frost", recipe, over);
+const pixelFx = (recipe = "", over: Record<string, number | string> = {}) => signatureFx("medievalpixel", recipe, over);
+const dotsFx = (recipe = "", over: Record<string, number | string> = {}) => signatureFx("dots", recipe, over);
+
+/** Noir et blanc francs : un seuil à 50 %, pas de trame par-dessus le dessin. */
+function thresholdScreens(d: Doc) {
+  for (const k of Object.keys(d.spotScreens)) d.spotScreens[k] = defaultScreen({ type: "seuil", level: 50 });
+  for (const k of Object.keys(d.cmykScreens) as (keyof Doc["cmykScreens"])[]) d.cmykScreens[k] = defaultScreen({ type: "seuil", level: 50 });
+}
+
+/** Objet « en réserve » : il n'imprime rien, il efface l'encre du dessous (blanc du papier). */
+function knockout(l: Layer, fx: Layer["effects"][number]): Layer {
+  l.fill = { mode: "aplat", tint: 0 };
+  l.overprint = false;
+  l.fxOnShape = true;
+  l.effects = [fx];
+  return l;
 }
 
 const spot = (name: string) => {
@@ -63,11 +81,66 @@ export const TEMPLATES: Template[] = [
       d.activeLayerId = titre.id;
       return d;
     },
-    finish(d) {
-      // noir et blanc francs : un seuil à 50 %, pas de trame par-dessus le grain
-      for (const k of Object.keys(d.spotScreens)) d.spotScreens[k] = defaultScreen({ type: "seuil", level: 50 });
-      for (const k of Object.keys(d.cmykScreens) as (keyof Doc["cmykScreens"])[]) d.cmykScreens[k] = defaultScreen({ type: "seuil", level: 50 });
+    finish: thresholdScreens,
+  },
+  {
+    id: "medieval-pixel", icon: "⚜", label: "Médiéval-Pixel", hint: "A3 blanc sur bleu : cadre en dentelle de pixels, titre et étoiles pixelisés.", destination: "riso",
+    make() {
+      const d = defaultDoc();
+      sized(d, "A3");
+      d.settings.name = "Médiéval-Pixel";
+      d.settings.mode = "directs";
+      const bleu = spot("Bleu moyen");
+      const fond = newLayer("aplat", "Fond bleu", 0);
+      fond.ink = bleu;
+      fond.source.params = { densite: 100 };
+      const cadre = knockout(newElement("forme", { x: 10, y: 10, w: 277, h: 400 }, bleu), pixelFx("Dentelle", { taille: 1 }));
+      cadre.name = "Cadre en dentelle";
+      cadre.shape = { ...cadre.shape!, type: "rect", radius: 18, fill: false, stroke: true, strokePt: 9 };
+      const cadre2 = knockout(newElement("forme", { x: 20, y: 20, w: 257, h: 380 }, bleu), pixelFx("Double contour", { taille: 0.7 }));
+      cadre2.name = "Filet intérieur";
+      cadre2.shape = { ...cadre2.shape!, type: "rect", radius: 10, fill: false, stroke: true, strokePt: 3 };
+      const ville = knockout(text("Dinan", "garamond-400", 64, { x: 30, y: 38, w: 237, h: 30 }, bleu, "centre"), pixelFx("Double contour", { taille: 0.55, epaisseur: 0.2 }));
+      const titre = knockout(text("FÊTE DES\nREMPARTS", "garamond-400", 96, { x: 22, y: 78, w: 253, h: 105 }, bleu, "centre"), pixelFx("Dentelle", { taille: 0.75 }));
+      const date = knockout(text("19 – 20 juillet", "garamond-400i", 44, { x: 30, y: 350, w: 237, h: 24 }, bleu, "centre"), pixelFx("Double contour", { taille: 0.45, epaisseur: 0.18 }));
+      const etoiles = [[40, 205], [245, 220], [70, 300], [215, 310], [150, 255]].map(([x, y], i) => {
+        const e = knockout(newElement("forme", { x, y, w: 16 + (i % 2) * 6, h: 16 + (i % 2) * 6 }, bleu), pixelFx("Bitmap", { taille: 0.7 }));
+        e.name = "Étoile " + (i + 1);
+        e.shape = { ...e.shape!, type: "etoile", sides: 8, inner: 45, fill: true, stroke: false };
+        return e;
+      });
+      d.layers = [fond, cadre, cadre2, ville, titre, date, ...etoiles];
+      d.layout.margins = { top: 20, bottom: 20, inside: 20, outside: 20 };
+      d.activeLayerId = titre.id;
+      return d;
     },
+    finish: thresholdScreens,
+  },
+  {
+    id: "dots", icon: "⁙", label: "Dots", hint: "A3 riso trois encres : nuages en grappes de points, soleil tramé, titre.", destination: "riso",
+    make() {
+      const d = defaultDoc();
+      sized(d, "A3");
+      d.settings.name = "Dots";
+      d.settings.mode = "directs";
+      const nuages = newLayer("bruit", "Nuages en points", 0);
+      nuages.ink = spot("Rose fluo");
+      nuages.source.params = { ...nuages.source.params, type: "nuages", echelle: 60, octaves: 4, contraste: 220, densite: 45 };
+      nuages.effects = [dotsFx("Grappes", { pas: 0.6 })];
+      const soleil = newElement("forme", { x: 150, y: 150, w: 110, h: 110 }, spot("Jaune"));
+      soleil.name = "Soleil tramé";
+      soleil.shape = { ...soleil.shape!, type: "ellipse", fill: true, stroke: false };
+      soleil.overprint = true;
+      soleil.fxOnShape = true;
+      soleil.effects = [{ id: uid("fx"), type: "flou", on: true, locked: false, params: { rayon: 8 } }, dotsFx("Trame classique", { pas: 1.6 })];
+      const titre = text("LUMIÈRES", "garamond-400", 96, { x: 15, y: 25, w: 267, h: 45 }, spot("Noir"), "centre");
+      titre.overprint = true;
+      d.layers = [nuages, soleil, titre];
+      d.layout.margins = { top: 15, bottom: 15, inside: 15, outside: 15 };
+      d.activeLayerId = nuages.id;
+      return d;
+    },
+    finish: thresholdScreens,
   },
   {
     id: "affiche-riso", icon: "◍", label: "Affiche risographie", hint: "A3, deux encres, titre géant sur texture organique.", destination: "riso",

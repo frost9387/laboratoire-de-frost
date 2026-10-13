@@ -230,6 +230,146 @@ console.log("Frost's Special");
   ok(ms < 20000, `A4 à 300 ppi en ${(ms / 1000).toFixed(1)} s`);
 }
 
+// ---------------------------------------------------------------- Médiéval-Pixel
+console.log("Médiéval-Pixel");
+{
+  const { EFFECT_BY_TYPE, defaultParams } = await import("../src/engine/effects.ts");
+  const def = EFFECT_BY_TYPE.medievalpixel;
+  const base = defaultParams(def);
+  const cover = (f: Float32Array) => {
+    let s = 0;
+    for (const v of f) s += v;
+    return s / f.length;
+  };
+  // un disque de 20 mm sur 60 mm
+  const disc = (ppi: number) => {
+    const m = Math.round((60 / 25.4) * ppi);
+    const f = new Float32Array(m * m);
+    for (let y = 0; y < m; y++)
+      for (let x = 0; x < m; x++) if (Math.hypot(((x + 0.5) / ppi) * 25.4 - 30, ((y + 0.5) / ppi) * 25.4 - 30) < 10) f[y * m + x] = 1;
+    return { f, m };
+  };
+  const run = (ppi: number, p: Record<string, number | string>) => {
+    const { f, m } = disc(ppi);
+    return { out: def.apply(f, m, m, p, { ppi, seed: 4 }), m };
+  };
+  const area = (Math.PI * 100) / 3600;
+  const full = cover(run(300, { ...base, rendu: "plein", passes: 1, bavure: 0 }).out);
+  ok(Math.abs(full - area) < 0.01, `pixels pleins : la surface du disque est gardée (${(full * 100).toFixed(1)} % pour ${(area * 100).toFixed(1)} %)`);
+  const lace = run(300, base);
+  const lc = cover(lace.out);
+  ok(lc > 0.01 && lc < full, `dentelle : seuls les contours sont tracés (${(lc * 100).toFixed(1)} % d'encre)`);
+  // le centre du disque est vide en mode contours : rien n'y est tracé
+  const { out, m } = run(300, { ...base, passes: 1, bavure: 0 });
+  let inner = 0;
+  for (let y = Math.round(m * 0.45); y < Math.round(m * 0.55); y++) for (let x = Math.round(m * 0.45); x < Math.round(m * 0.55); x++) inner += out[y * m + x];
+  ok(inner === 0, "contours : l'intérieur d'un aplat reste vide");
+  const c150 = cover(run(150, { ...base, rendu: "plein", passes: 1, bavure: 0 }).out);
+  ok(Math.abs(c150 - full) < 0.012, `même dessin à 150 et 300 ppi (${(c150 * 100).toFixed(1)} % / ${(full * 100).toFixed(1)} %)`);
+  for (const pr of def.presets ?? []) {
+    const v = cover(run(100, { ...base, ...pr.params }).out);
+    if (!(v > 0.005 && v < 0.5)) ok(false, `recette « ${pr.label} » : couverture anormale ${(v * 100).toFixed(1)} %`);
+  }
+  ok(true, `${def.presets?.length ?? 0} recettes rendues sans erreur`);
+  const W = 2480;
+  const H = 3508;
+  const a4 = new Float32Array(W * H);
+  for (let y = 0; y < H; y++)
+    for (let x = 0; x < W; x++) if (Math.hypot(x - W / 2, y - H / 2) < 700 || Math.abs(y - 900 - 200 * Math.sin(x / 300)) < 90) a4[y * W + x] = 1;
+  const t0 = performance.now();
+  def.apply(a4, W, H, base, { ppi: 300, seed: 3 });
+  const ms = performance.now() - t0;
+  ok(ms < 20000, `A4 à 300 ppi, 3 passes, en ${(ms / 1000).toFixed(1)} s`);
+}
+
+// ---------------------------------------------------------------- Dots
+console.log("Dots");
+{
+  const { EFFECT_BY_TYPE, defaultParams } = await import("../src/engine/effects.ts");
+  const def = EFFECT_BY_TYPE.dots;
+  const base = defaultParams(def);
+  const cover = (f: Float32Array) => {
+    let s = 0;
+    for (const v of f) s += v;
+    return s / f.length;
+  };
+  const n = 500;
+  const flat = (v: number) => new Float32Array(n * n).fill(v);
+  const clean = { ...base, noir: 0, blanc: 100, grain: 0, bruit: 0, maxi: 141 };
+  const tones = [0.2, 0.4, 0.6, 0.8].map((v) => cover(def.apply(flat(v), n, n, clean, { ppi: 300, seed: 2 })));
+  ok(tones.every((v, i) => i === 0 || v > tones[i - 1]), `plus le ton est foncé, plus il y a d'encre (${tones.map((v) => (v * 100).toFixed(0) + " %").join(" → ")})`);
+  // points ronds de 113 % du pas (√(4/π)) : l'aire d'un point vaut exactement le ton tant qu'ils ne se touchent pas
+  const exact = cover(def.apply(flat(0.4), n, n, { ...clean, maxi: 112.84 }, { ppi: 300, seed: 2 }));
+  ok(Math.abs(exact - 0.4) < 0.03, `ton de 40 % rendu à ${(exact * 100).toFixed(1)} % d'encre (points ronds de 113 %, grille régulière)`);
+  const paper = cover(def.apply(flat(0), n, n, base, { ppi: 300, seed: 2 }));
+  ok(paper === 0, "le papier reste propre");
+  const c150 = cover(def.apply(flat(0.5), Math.round(n / 2), Math.round(n / 2), base, { ppi: 150, seed: 2 }));
+  const c300 = cover(def.apply(flat(0.5), n, n, base, { ppi: 300, seed: 2 }));
+  ok(Math.abs(c150 - c300) < 0.02, `même dessin à 150 et 300 ppi (${(c150 * 100).toFixed(1)} % / ${(c300 * 100).toFixed(1)} %)`);
+  for (const pr of def.presets ?? []) {
+    const v = cover(def.apply(flat(0.5), 200, 200, { ...base, ...pr.params }, { ppi: 100, seed: 2 }));
+    if (!(v > 0.05 && v < 0.98)) ok(false, `recette « ${pr.label} » : couverture anormale ${(v * 100).toFixed(1)} %`);
+  }
+  ok(true, `${def.presets?.length ?? 0} recettes rendues sans erreur`);
+  const W = 2480;
+  const H = 3508;
+  const a4 = new Float32Array(W * H);
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) a4[y * W + x] = Math.max(0, 1 - Math.hypot(x - W / 2, y - H / 2) / 1400);
+  const t0 = performance.now();
+  def.apply(a4, W, H, base, { ppi: 300, seed: 3 });
+  const ms = performance.now() - t0;
+  ok(ms < 20000, `A4 à 300 ppi en ${(ms / 1000).toFixed(1)} s`);
+}
+
+// ---------------------------------------------------------------- objets à effets : champ découpé
+console.log("Objets à effets (champ découpé)");
+{
+  const { sampleSilhouette, silhouetteBox, uncrop } = await import("../src/engine/compose.ts");
+  const { makeScreener, defaultScreen } = await import("../src/engine/screens.ts");
+  // une tache sur une page 400 × 300 px, et la même gardée dans une découpe de 120 × 90 px
+  const W = 400;
+  const H = 300;
+  const page = { w: W, h: H, ch: [new Float32Array(W * H), new Float32Array(W * H)] };
+  for (let y = 0; y < H; y++)
+    for (let x = 0; x < W; x++) {
+      const v = Math.max(0, Math.min(1, 1.5 - Math.hypot(x - 170, y - 120) / 25));
+      page.ch[0][y * W + x] = v * 0.6;
+      page.ch[1][y * W + x] = v;
+    }
+  const cx = 110;
+  const cy = 75;
+  const cw = 120;
+  const chh = 90;
+  const crop = { w: cw, h: chh, ox: cx, oy: cy, ch: [new Float32Array(cw * chh), new Float32Array(cw * chh)] };
+  for (let c = 0; c < 2; c++) for (let y = 0; y < chh; y++) for (let x = 0; x < cw; x++) crop.ch[c][y * cw + x] = page.ch[c][(cy + y) * W + cx + x];
+  let same = true;
+  for (const sc of [1, 0.5, 0.25]) {
+    const ow = Math.round(W / sc);
+    const oh = Math.round(H / sc);
+    const A = sampleSilhouette(page, sc, 0, 0, ow, oh);
+    const B = sampleSilhouette(crop, sc, 0, 0, ow, oh);
+    for (let i = 0; i < A.length; i++) if (A[i] !== B[i]) { same = false; break; }
+    const ba = silhouetteBox(page, sc, ow, oh);
+    const bb = silhouetteBox(crop, sc, ow, oh);
+    if (JSON.stringify(ba) !== JSON.stringify(bb)) same = false;
+  }
+  ok(same, "silhouette et cadre identiques avec un champ découpé, à 1×, 2× et 4×");
+  const u = uncrop(crop, W, H);
+  let eq = true;
+  for (let i = 0; i < u.ch[1].length; i++) if (Math.abs(u.ch[1][i] - page.ch[1][i]) > 1e-6) { eq = false; break; }
+  ok(eq, "un champ découpé se remet à l'échelle de la page sans perte");
+  const spec = defaultScreen({ type: "aucune" });
+  const sa = makeScreener({ spec, outDpi: 300, fullW: W * 2, fullH: H * 2, contone: page.ch[0], cw: W, ch: H, contonePpi: 150 });
+  const sb = makeScreener({ spec, outDpi: 300, fullW: W * 2, fullH: H * 2, contone: crop.ch[0], cw, ch: chh, contonePpi: 150, crop: { x: cx, y: cy } });
+  const oa = new Uint8Array(W * 2 * H * 2);
+  const ob = new Uint8Array(W * 2 * H * 2);
+  sa(0, 0, W * 2, H * 2, oa);
+  sb(0, 0, W * 2, H * 2, ob);
+  let diff = 0;
+  for (let i = 0; i < oa.length; i++) diff = Math.max(diff, Math.abs(oa[i] - ob[i]));
+  ok(diff <= 1, `encre de l'objet identique depuis la découpe (écart max ${diff}/255)`);
+}
+
 // ---------------------------------------------------------------- texte (contours vectoriels)
 console.log("Composition du texte");
 {

@@ -31,13 +31,16 @@ export function fxSeed(doc: Doc, id: string): number {
 
 /** Applique la pile d'effets actifs d'un calque à un champ. */
 export function applyEffects(doc: Doc, layer: Layer, field: Field, ppi: number): Field {
-  const { w, h } = field;
+  const { w, h, ox, oy } = field;
+  const box = docBox(doc);
+  const origin = { x: ((ox ?? 0) * 25.4) / ppi, y: ((oy ?? 0) * 25.4) / ppi };
+  const page = { w: box.wMm, h: box.hMm };
   for (const fx of layer.effects) {
     if (!fx.on) continue;
     const def = EFFECT_BY_TYPE[fx.type];
     if (!def) continue;
-    const ctx = { ppi, seed: fxSeed(doc, fx.id) };
-    field = { w, h, ch: field.ch.map((c) => def.apply(c, w, h, fx.params, ctx)) };
+    const ctx = { ppi, seed: fxSeed(doc, fx.id), origin, page };
+    field = { w, h, ox, oy, ch: field.ch.map((c) => def.apply(c, w, h, fx.params, ctx)) };
   }
   return field;
 }

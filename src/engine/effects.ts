@@ -5,6 +5,8 @@ import { blur, morph } from "./field.ts";
 import { Perlin } from "./noise.ts";
 import { clamp01, hash3, mmToPx, sampleBilinear, rng } from "./util.ts";
 import { frostSpecial } from "./frostSpecial.ts";
+import { medievalPixel } from "./medievalPixel.ts";
+import { dots } from "./dots.ts";
 
 export interface ParamDef {
   key: string;
@@ -28,6 +30,10 @@ export interface ParamDef {
 export interface EffectCtx {
   ppi: number;
   seed: number;
+  /** Coin du champ sur la page (mm) : un objet est calculé dans une découpe, pas sur toute la page. */
+  origin?: { x: number; y: number };
+  /** Taille de la page avec fond perdu (mm). */
+  page?: { w: number; h: number };
 }
 
 export interface EffectDef {
@@ -95,7 +101,74 @@ export const EFFECTS: EffectDef[] = [
       { label: "Courbes de niveau (photo)", params: { trace: "niveaux", lignes: 55, ecart: 1.2, estompe: 0.4, halo: 0, gouges: 8, dechire: 45 } },
     ],
     apply(ch, w, h, p, ctx) {
-      return frostSpecial(ch, w, h, p, ctx.ppi, ctx.seed);
+      return frostSpecial(ch, w, h, p, ctx.ppi, ctx.seed, ctx.origin, ctx.page);
+    },
+  },
+  {
+    type: "medievalpixel",
+    label: "Médiéval-Pixel",
+    group: "Signature",
+    params: [
+      {
+        key: "rendu", label: "Rendu", kind: "select", def: "contours", rand: "tout", section: "Pixels",
+        options: [["contours", "Contours des amas (dentelle)"], ["mosaique", "Point de croix (chaque pixel)"], ["plein", "Pixels pleins (bitmap)"]],
+        hint: "Contours : seul le bord des groupes de pixels est tracé, comme « fond 0 % + contour » dans Photoshop.",
+      },
+      { key: "taille", label: "Taille des pixels", kind: "range", min: 0.1, max: 20, step: 0.05, def: 0.8, unit: "mm", log: true, rand: "bas" },
+      {
+        key: "tramage", label: "Tramage", kind: "select", def: "diffusion", rand: "tout",
+        options: [["diffusion", "Diffusion (Floyd-Steinberg)"], ["atkinson", "Diffusion Atkinson"], ["seuil", "Seuil net"]],
+        hint: "Comme Image → Mode → Bitmap : la diffusion émiette les bords et transforme les gris en pixels épars.",
+      },
+      { key: "seuil", label: "Seuil", kind: "range", min: 1, max: 99, step: 1, def: 50, unit: "%", rand: "tout", hint: "Plus haut : moins de pixels encrés." },
+      { key: "bavure", label: "Bavure", kind: "range", min: 0, max: 5, step: 0.05, def: 0.5, unit: "mm", rand: "bas", hint: "Adoucit le dessin avant la réduction : les bords partent en escaliers irréguliers." },
+      { key: "rotation", label: "Rotation de la grille", kind: "range", min: 0, max: 90, step: 1, def: 0, unit: "°", rand: "bas" },
+      { key: "epaisseur", label: "Épaisseur du contour", kind: "range", min: 0.02, max: 3, step: 0.01, def: 0.25, unit: "mm", log: true, rand: "bas", section: "Contour" },
+      { key: "position", label: "Position", kind: "select", def: "centre", rand: "tout", options: [["centre", "Centré sur le bord"], ["interieur", "À l'intérieur"], ["exterieur", "À l'extérieur"]] },
+      { key: "passes", label: "Superpositions", kind: "range", min: 1, max: 4, step: 1, def: 3, rand: "tout", section: "Superposition", hint: "Le même dessin repixelisé plusieurs fois, à des tailles différentes, puis empilé." },
+      { key: "decalage", label: "Décalage des passes", kind: "range", min: 0, max: 10, step: 0.05, def: 0.5, unit: "mm", rand: "bas" },
+      { key: "variation", label: "Écart de taille entre passes", kind: "range", min: 0, max: 100, step: 1, def: 40, unit: "%", rand: "tout" },
+    ],
+    presets: [
+      { label: "Dentelle médiévale", params: {} },
+      { label: "Double contour net", params: { passes: 2, bavure: 0.2, taille: 0.9, epaisseur: 0.3, variation: 20 } },
+      { label: "Point de croix", params: { rendu: "mosaique", position: "interieur", passes: 1, taille: 1.1, epaisseur: 0.18, bavure: 0.2 } },
+      { label: "Bitmap gros grain (illustrations)", params: { rendu: "plein", taille: 0.5, passes: 1, bavure: 0 } },
+      { label: "Pixel net sans tramage", params: { tramage: "seuil", passes: 1, taille: 1.5, bavure: 0, epaisseur: 0.35 } },
+    ],
+    apply(ch, w, h, p, ctx) {
+      return medievalPixel(ch, w, h, p, ctx.ppi, ctx.seed, ctx.origin);
+    },
+  },
+  {
+    type: "dots",
+    label: "Dots",
+    group: "Signature",
+    params: [
+      { key: "flou", label: "Flou", kind: "range", min: 0, max: 5, step: 0.05, def: 0, unit: "mm", rand: "bas", section: "Préparation de l'image" },
+      { key: "grain", label: "Grain", kind: "range", min: 0, max: 100, step: 1, def: 35, unit: "%", rand: "tout", hint: "Chaque point reçoit un ton un peu différent : les points varient de taille au hasard." },
+      { key: "gamma", label: "Gamma", kind: "range", min: 0.3, max: 3, step: 0.05, def: 1, rand: "tout", hint: "Plus haut : les gris s'éclaircissent, les points rapetissent." },
+      { key: "noir", label: "Point noir", kind: "range", min: 0, max: 95, step: 1, def: 10, unit: "%", rand: "bas", hint: "En dessous de ce ton : aucun point." },
+      { key: "blanc", label: "Point blanc", kind: "range", min: 5, max: 100, step: 1, def: 85, unit: "%", rand: "haut", hint: "Au-dessus de ce ton : points à la taille maxi." },
+      { key: "seuil", label: "Seuil d'apparition", kind: "range", min: 0, max: 100, step: 1, def: 0, unit: "%", rand: "bas", section: "Points", hint: "Les tons plus clairs que ce seuil ne reçoivent aucun point." },
+      { key: "grille", label: "Grille", kind: "select", def: "reguliere", rand: "tout", options: [["reguliere", "Régulière"], ["benday", "Benday (en quinconce)"]] },
+      { key: "angle", label: "Angle de la grille", kind: "range", min: 0, max: 90, step: 1, def: 22, unit: "°", rand: "tout" },
+      { key: "pas", label: "Pas de la grille", kind: "range", min: 0.1, max: 10, step: 0.05, def: 0.5, unit: "mm", log: true, rand: "bas" },
+      { key: "mini", label: "Taille mini", kind: "range", min: 0, max: 200, step: 1, def: 0, unit: "%", rand: "bas", hint: "En % du pas : même les gris les plus clairs gardent ce point." },
+      { key: "maxi", label: "Taille maxi", kind: "range", min: 5, max: 300, step: 1, def: 110, unit: "%", rand: "tout", hint: "En % du pas. Au-delà de 100 %, les points se touchent et forment des grappes." },
+      { key: "arrondi", label: "Arrondi des coins", kind: "range", min: 0, max: 100, step: 1, def: 100, unit: "%", rand: "tout", hint: "0 % : carrés. 100 % : ronds." },
+      { key: "bruit", label: "Bruit", kind: "range", min: 0, max: 100, step: 1, def: 80, unit: "%", rand: "tout", hint: "Décale chaque point et fait varier sa taille : la grille disparaît, les points s'agglutinent." },
+    ],
+    presets: [
+      { label: "Grappes de points", params: {} },
+      { label: "Benday (bande dessinée)", params: { grille: "benday", pas: 1.2, maxi: 100, bruit: 0, angle: 15, grain: 0 } },
+      { label: "Trame classique", params: { pas: 0.8, maxi: 120, bruit: 0, grain: 0, angle: 45 } },
+      { label: "Pixels carrés", params: { arrondi: 0, maxi: 95, bruit: 0, grain: 0 } },
+      { label: "Grosses pastilles", params: { pas: 3, maxi: 110, bruit: 15, grain: 10 } },
+      { label: "Poussière", params: { pas: 0.35, maxi: 100, bruit: 100, grain: 30, gamma: 0.8 } },
+    ],
+    apply(ch, w, h, p, ctx) {
+      return dots(ch, w, h, p, ctx.ppi, ctx.seed, ctx.origin);
     },
   },
   {
@@ -194,10 +267,12 @@ export const EFFECTS: EffectDef[] = [
       const soft = Boolean(p.doux);
       const out = new Float32Array(ch.length);
       const s = ctx.seed;
+      const gx = ctx.origin?.x ?? 0;
+      const gy = ctx.origin?.y ?? 0;
       for (let y = 0; y < h; y++) {
-        const ym = ((y + 0.5) / ctx.ppi) * 25.4 / size;
+        const ym = (((y + 0.5) / ctx.ppi) * 25.4 + gy) / size;
         for (let x = 0; x < w; x++) {
-          const xm = ((x + 0.5) / ctx.ppi) * 25.4 / size;
+          const xm = (((x + 0.5) / ctx.ppi) * 25.4 + gx) / size;
           let n: number;
           if (soft) {
             const xi = Math.floor(xm);
@@ -396,8 +471,10 @@ export const EFFECTS: EffectDef[] = [
       const a = (num(p, "angle") * Math.PI) / 180;
       const ca = Math.cos(a);
       const sa = Math.sin(a);
+      const px = mmToPx(ctx.origin?.x ?? 0, ctx.ppi);
+      const py = mmToPx(ctx.origin?.y ?? 0, ctx.ppi);
       return remap(ch, w, h, (x, y) => {
-        const t = (x * ca + y * sa) / lam;
+        const t = ((x + px) * ca + (y + py) * sa) / lam;
         const d = Math.sin(t * Math.PI * 2) * amp;
         return [x - sa * d, y + ca * d];
       });
@@ -415,9 +492,11 @@ export const EFFECTS: EffectDef[] = [
       const amp = mmToPx(num(p, "amplitude"), ctx.ppi);
       const sc = Math.max(1, mmToPx(num(p, "echelle"), ctx.ppi));
       const noise = new Perlin(ctx.seed);
+      const px = mmToPx(ctx.origin?.x ?? 0, ctx.ppi);
+      const py = mmToPx(ctx.origin?.y ?? 0, ctx.ppi);
       return remap(ch, w, h, (x, y) => {
-        const n = (noise.fbm(x / sc, 0.37, 4) + 1) / 2;
-        const n2 = noise.fbm(x / sc + 11.3, y / sc, 2);
+        const n = (noise.fbm((x + px) / sc, 0.37, 4) + 1) / 2;
+        const n2 = noise.fbm((x + px) / sc + 11.3, (y + py) / sc, 2);
         return [x + n2 * amp * 0.15, y - n * amp];
       });
     },

@@ -130,19 +130,24 @@ const num = (p: Params, k: string, def = 0) => {
  * Le « tracé » ψ (en mm) sur une grille grossière : les lignes gravées sont ses courbes de niveau,
  * les stries de pinceau courent le long de ces courbes.
  */
-function tracePsi(src: Float32Array, w: number, h: number, pxMm: number, p: Params, seed: number) {
+function tracePsi(src: Float32Array, w: number, h: number, pxMm: number, p: Params, seed: number, off: { x: number; y: number }, page: { w: number; h: number }) {
   const sp = Math.max(0.2, num(p, "ecart", 1.4));
   const Wmm = w * pxMm;
   const Hmm = h * pxMm;
-  const gs = Math.min(Math.max(pxMm, 1), Math.max(pxMm, sp / 6, Math.sqrt((Wmm * Hmm) / 3e6)));
-  const gw = Math.ceil(Wmm / gs) + 2;
-  const gh = Math.ceil(Hmm / gs) + 2;
+  // pas de la grille fixé par la PAGE (pas par la découpe) : même tracé quelle que soit la découpe
+  const gs = Math.min(Math.max(pxMm, 1), Math.max(pxMm, sp / 6, Math.sqrt((page.w * page.h) / 3e6)));
+  // la grille est calée sur un réseau fixe de la page : une découpe retrouve les mêmes nœuds
+  const sx = ((off.x % gs) + gs) % gs;
+  const sy = ((off.y % gs) + gs) % gs;
+  const gw = Math.ceil((Wmm + sx) / gs) + 2;
+  const gh = Math.ceil((Hmm + sy) / gs) + 2;
   let mode = String(p.trace ?? "echos");
   const a = (num(p, "angle", 15) * Math.PI) / 180;
   const ca = Math.cos(a);
   const sa = Math.sin(a);
-  const cx = Wmm / 2;
-  const cy = Hmm / 2;
+  // centre du tourbillon : celui de la page, même si le champ n'en est qu'une découpe
+  const cx = page.w / 2;
+  const cy = page.h / 2;
 
   // ton moyen de chaque cellule (2×2 échantillons)
   let base: Float32Array | null = null;
@@ -151,8 +156,8 @@ function tracePsi(src: Float32Array, w: number, h: number, pxMm: number, p: Para
     const k = gs / pxMm;
     for (let gy = 0; gy < gh; gy++)
       for (let gx = 0; gx < gw; gx++) {
-        const x = gx * k;
-        const y = gy * k;
+        const x = gx * k - sx / pxMm;
+        const y = gy * k - sy / pxMm;
         const q = k * 0.25;
         gt[gy * gw + gx] = (sampleBilinear(src, w, h, x - q, y - q) + sampleBilinear(src, w, h, x + q, y - q) + sampleBilinear(src, w, h, x - q, y + q) + sampleBilinear(src, w, h, x + q, y + q)) / 4;
       }
@@ -202,14 +207,15 @@ function tracePsi(src: Float32Array, w: number, h: number, pxMm: number, p: Para
   const alongG = gougeOndes ? new Float32Array(gw * gh) : null;
   for (let gy = 0; gy < gh; gy++)
     for (let gx = 0; gx < gw; gx++) {
-      let x = gx * gs;
-      let y = gy * gs;
+      // coordonnées de page : le tracé ne bouge pas quand le champ est une découpe
+      let x = gx * gs - sx + off.x;
+      let y = gy * gs - sy + off.y;
       if (amp > 0) {
         x += amp * noise.fbm(x / S, y / S, 2);
         y += amp * noise.fbm(x / S + 41.3, y / S + 17.9, 2);
       }
       let v: number;
-      if (base) v = sampleBilinear(base, gw, gh, x / gs + 0.5, y / gs + 0.5);
+      if (base) v = sampleBilinear(base, gw, gh, (x - off.x + sx) / gs + 0.5, (y - off.y + sy) / gs + 0.5);
       else if (mode === "tourbillon") v = Math.hypot(x - cx, y - cy);
       else v = -x * sa + y * ca;
       psi[gy * gw + gx] = v;
@@ -218,12 +224,16 @@ function tracePsi(src: Float32Array, w: number, h: number, pxMm: number, p: Para
         alongG[gy * gw + gx] = x * ca + y * sa;
       }
     }
-  return { psi, psiG, alongG, gw, gh, gs };
+  return { psi, psiG, alongG, gw, gh, gs, sx, sy };
 }
 
 /** Applique Frost's Special à un canal (0 = papier, 1 = encre). */
-export function frostSpecial(ch: Float32Array, w: number, h: number, p: Params, ppi: number, seed: number): Float32Array {
+export function frostSpecial(ch: Float32Array, w: number, h: number, p: Params, ppi: number, seed: number, origin = { x: 0, y: 0 }, page?: { w: number; h: number }): Float32Array {
   const pxMm = 25.4 / ppi;
+  // le champ peut n'être qu'une découpe de la page : tous les motifs sont calculés en coordonnées de page
+  const offX = origin.x;
+  const offY = origin.y;
+  const pageMm = page ?? { w: w * pxMm, h: h * pxMm };
   const toPx = (mm: number) => mm / pxMm;
   const sp = Math.max(0.2, num(p, "ecart", 1.4));
   const kLines = num(p, "lignes", 45) / 100;
@@ -255,10 +265,10 @@ export function frostSpecial(ch: Float32Array, w: number, h: number, p: Params, 
   const kh = haloK * 1.6;
   const ragP = Math.min(1, rag * 1.6);
   for (let y = 0; y < h; y++) {
-    const ym = (y + 0.5) * pxMm;
+    const ym = (y + 0.5) * pxMm + offY;
     for (let x = 0; x < w; x++) {
       const i = y * w + x;
-      const xm = (x + 0.5) * pxMm;
+      const xm = (x + 0.5) * pxMm + offX;
       let t = tone[i];
       if (rag > 0 && t !== src[i]) t = src[i] + (t - src[i]) * (1 - ragP * (1 - patch(vn(L4, xm / 16 + 800.5, ym / 16 + 41.5))));
       if (hb) {
@@ -269,7 +279,7 @@ export function frostSpecial(ch: Float32Array, w: number, h: number, p: Params, 
     }
   }
 
-  const { psi, psiG, alongG, gw, gh, gs } = tracePsi(src, w, h, pxMm, p, seed);
+  const { psi, psiG, alongG, gw, gh, gs, sx, sy } = tracePsi(src, w, h, pxMm, p, seed, origin, pageMm);
   const gsp = Math.max(0.3, num(p, "ecartGouges", 4));
   const c30 = Math.cos(0.52);
   const s30 = Math.sin(0.52);
@@ -277,7 +287,7 @@ export function frostSpecial(ch: Float32Array, w: number, h: number, p: Params, 
   const s70 = Math.sin(1.22);
 
   // ---- les ingrédients de la matrice de seuil, en un point (mm)
-  const psiAt = (xm: number, ym: number) => sampleBilinear(psi, gw, gh, xm / gs + 0.5, ym / gs + 0.5);
+  const psiAt = (xm: number, ym: number) => sampleBilinear(psi, gw, gh, (xm - offX + sx) / gs + 0.5, (ym - offY + sy) / gs + 0.5);
   const grainAt = (xm: number, ym: number) => {
     const u = xm / grain;
     const v = ym / grain;
@@ -306,8 +316,8 @@ export function frostSpecial(ch: Float32Array, w: number, h: number, p: Params, 
     let g: number;
     let along: number;
     if (psiG && alongG) {
-      g = sampleBilinear(psiG, gw, gh, xm / gs + 0.5, ym / gs + 0.5);
-      along = sampleBilinear(alongG, gw, gh, xm / gs + 0.5, ym / gs + 0.5);
+      g = sampleBilinear(psiG, gw, gh, (xm - offX + sx) / gs + 0.5, (ym - offY + sy) / gs + 0.5);
+      along = sampleBilinear(alongG, gw, gh, (xm - offX + sx) / gs + 0.5, (ym - offY + sy) / gs + 0.5);
     } else {
       g = ps;
       along = (xm * 0.8 + ym * 0.6) * 0.7 + (xm * -0.6 + ym * 0.8) * 0.7;
@@ -331,8 +341,8 @@ export function frostSpecial(ch: Float32Array, w: number, h: number, p: Params, 
   const gS = new Float32Array(NS);
   const sS = new Float32Array(NS);
   for (let k = 0; k < NS; k++) {
-    xs[k] = r() * w * pxMm;
-    ys[k] = r() * h * pxMm;
+    xs[k] = offX + r() * w * pxMm;
+    ys[k] = offY + r() * h * pxMm;
     gS[k] = grainAt(xs[k], ys[k]);
     sS[k] = streakAt(psiAt(xs[k], ys[k]), xs[k], ys[k]);
   }
@@ -371,10 +381,10 @@ export function frostSpecial(ch: Float32Array, w: number, h: number, p: Params, 
   const out = new Float32Array(w * h);
   const SOFT = 0.04;
   for (let y = 0; y < h; y++) {
-    const ym = (y + 0.5) * pxMm;
+    const ym = (y + 0.5) * pxMm + offY;
     for (let x = 0; x < w; x++) {
       const i = y * w + x;
-      const xm = (x + 0.5) * pxMm;
+      const xm = (x + 0.5) * pxMm + offX;
       let t = tone[i];
       if (t < 0.004) {
         // papier : seuls les éclats de poussière s'y posent

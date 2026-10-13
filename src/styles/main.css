@@ -301,12 +301,13 @@ textarea.text-content { font: 13px var(--f-ui); min-height: 64px; margin-bottom:
 .welcome-head { text-align: center; margin-bottom: 6px; }
 .welcome-head .big { font: 900 20px var(--f-logo); letter-spacing: .08em; text-transform: uppercase; }
 .welcome-head p { margin: 4px auto 8px; max-width: 520px; font-size: 12px; }
-.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 8px; }
+.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(138px, 1fr)); gap: 6px; }
 .card, .dest { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; padding: 8px 10px; text-align: left; border: 1px solid #000; background: #fff; box-shadow: 2px 2px 0 #000; }
 .card:hover, .dest:hover { background: var(--frost-2); }
 .card.sel, .dest.sel { background: #000; color: #fff; }
 .card.sel .card-hint, .dest.sel .card-hint { color: #ddd; }
-.card-icon { font: 26px/1 var(--f-ui); }
+.card-icon { font: 20px/1 var(--f-ui); }
+.cards .card { padding: 6px 8px; }
 .card-icon.small { font-size: 18px; }
 .card-title { font: 10px var(--f-pix); text-transform: uppercase; letter-spacing: .04em; }
 .card-hint { font-size: 11px; color: var(--dark); }
